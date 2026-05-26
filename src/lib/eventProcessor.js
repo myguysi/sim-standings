@@ -1,37 +1,34 @@
 const fs = require('fs');
 const path = require('path');
 
-const projectRoot = path.resolve(__dirname, '../..');
-const outputDir = path.join(projectRoot, 'output');
-
-class RoundProcessor {
+class EventProcessor {
     constructor(context) {
         this.context = context;
     }
 
-    processRound(round, roundIndex, context) {
-        const roundId = round.data.subsession_id;
+    processEvent(eventResult, eventIndex, context) {
+        const roundId = eventResult.data.subsession_id;
         console.log(`Processing round: ${roundId}`);
         console.group();
 
-        const roundFormat = this.getRoundFormat(roundIndex);
-        const raceResults = this.getRaceResults(round);
+        const roundFormat = this.getEventFormat(eventIndex);
+        const raceResults = this.getRaceResults(eventResult);
 
         // Loop through each class and filter the round results for drivers in that class
         this.context.config.classes.forEach(cls => {
             const classDrivers = context.driversByClass[cls];
-            const results = raceResults.filter(result => {
+            const classResults = raceResults.filter(result => {
                 return classDrivers.some(driver => driver.id === result.cust_id);
             });
 
-            console.log(`Processing class: ${cls} - ${classDrivers.length} drivers, ${results.length} results`);
+            console.log(`Processing class: ${cls} - ${classDrivers.length} drivers, ${classResults.length} results`);
 
             const standings = context.getStandingsByClass(cls);
             const standingsArray = Array.from(standings.values());
 
             // Calculate points for each driver based on their finishing position in class using the league's points system
             classDrivers.forEach((driver) => {
-                this.processClassResult(standings, cls, driver, results, roundFormat, roundId);
+                this.processClassResult(standings, cls, driver, classResults, roundFormat, roundId);
             });
 
             // Sort the standings table based on total points, and apply tiebreakers if necessary
@@ -40,7 +37,8 @@ class RoundProcessor {
             // Calculate position changes compared to the previous round
             sortedStandings.forEach(this.calculatePositionChange);
 
-            this.writeStandingsToFile(sortedStandings, cls, roundIndex + 1);
+            // Save standings after each round
+            context.writeStandings(cls, eventIndex + 1, sortedStandings);
         });
 
         console.groupEnd();
@@ -117,13 +115,8 @@ class RoundProcessor {
         driverStanding.position = currentPosition; // Update current position
     }
 
-    writeStandingsToFile(standings, cls, roundNumber) {
-        const classOutputFilePath = path.join(outputDir, `${cls}_round_${roundNumber}.json`);
-        fs.writeFileSync(classOutputFilePath, JSON.stringify(standings, null, 2));
-    }
-
-    getRoundFormat(roundIndex) {
-        const formatId = this.context.config.rounds[roundIndex].format;
+    getEventFormat(eventIndex) {
+        const formatId = this.context.config.events[eventIndex].format;
         const roundFormat = this.context.config.formats.find(format => format.id === formatId);
         if (!roundFormat) {
             throw new Error(`Format ${formatId} not found in league configuration`);
@@ -141,5 +134,5 @@ class RoundProcessor {
 }
 
 module.exports = {
-    RoundProcessor
+    EventProcessor
 };

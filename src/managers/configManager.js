@@ -1,9 +1,13 @@
 const fs = require('fs');
 
 class ConfigManager {
-    constructor(leagueManager) {
-        this.leagueManager = leagueManager;
+    constructor(appContext) {
+        this.appContext = appContext;
         this.config = null;
+    }
+
+    init() {
+        this.config = this.appContext.assetsManager.loadConfig();
     }
 
     loadFromFile(configFilePath) {

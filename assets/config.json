@@ -24,7 +24,7 @@
             }
         }
     ],
-    "rounds": [
+    "events": [
         { "format": "sprint" },
         { "format": "sprint" },
         { "format": "sprint" },

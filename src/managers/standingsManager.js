@@ -1,15 +1,16 @@
 const { Standing } = require('../models/standing');
 
 class StandingsManager {
-    constructor(leagueManager) {
-        this.leagueManager = leagueManager;
+    constructor(appContext) {
+        this.appContext = appContext;
         this._byClass = {};
 
         this.getByClass = this.getByClass.bind(this);
     }
 
-    initClass(cls) {
-        this._byClass[cls] = new Map();
+    init() {
+        const drivers = this.appContext.driverManager.all;
+        drivers.forEach(driver => this.addDriver(driver));
     }
 
     getByClass(cls) {
@@ -24,13 +25,13 @@ class StandingsManager {
         return classStandings.get(driver.id);
     }
 
-    addDrivers(drivers) {
-        drivers.forEach(driver => this.addDriver(driver));
+    addClass(cls) {
+        this._byClass[cls] = new Map();
     }
 
     addDriver(driver) {
         if (!this._byClass[driver.class]) {
-            this.initClass(driver.class);
+            this.addClass(driver.class);
         }
         const standing = new Standing(driver, driver.class);
         this._byClass[driver.class].set(driver.id, standing);

@@ -7,6 +7,11 @@ class DriverManager {
         this._drivers = [];
     }
 
+    init() {
+        const driversData = this.leagueManager.assetsManager.loadDrivers();
+        driversData.forEach(driverData => this.add(driverData));
+    }
+
     get all() {
         return this._drivers;
     }
@@ -28,11 +33,6 @@ class DriverManager {
     add(driverData) {
         const driver = new Driver(driverData);
         this._drivers.push(driver);
-    }
-
-    loadFromFile(filePath) {
-        const driversData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-        driversData.forEach(driverData => this.add(driverData));
     }
 }
 

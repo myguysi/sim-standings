@@ -1,2 +1,5 @@
 .DS_Store
-output
+
+node_modules
+
+public
