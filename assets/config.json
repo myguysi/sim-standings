@@ -1,0 +1,38 @@
+{
+    "leagueName": "Example League",
+    "formats": [
+        {
+            "id": "sprint",
+            "name": "Sprint",
+            "droppedRounds": 1,
+            "pointsSystem": {
+                "finishPosition": [100, 90, 80, 72, 66, 60, 54, 48, 42, 36, 30, 26, 22, 18, 14, 10, 8, 6, 4, 2],
+                "finishPositionDefault": 0,
+                "fastestLap": 5,
+                "polePosition": 5
+            }
+        },
+        {
+            "id": "showdown",
+            "name": "Showdown",
+            "droppedRounds": 0,
+            "pointsSystem": {
+                "finishPosition": [150, 135, 120, 108, 99, 90, 81, 72, 63, 54, 45, 39, 33, 27, 21, 15, 12, 9, 6, 3, 0],
+                "finishPositionDefault": 0,
+                "fastestLap": 10,
+                "polePosition": 10
+            }
+        }
+    ],
+    "rounds": [
+        { "format": "sprint" },
+        { "format": "sprint" },
+        { "format": "sprint" },
+        { "format": "sprint" },
+        { "format": "sprint" },
+        { "format": "sprint" },
+        { "format": "sprint" },
+        { "format": "showdown" }
+    ],
+    "classes": ["pro", "inter", "club"]
+}
