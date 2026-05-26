@@ -23,24 +23,63 @@ A Node.js application for processing and calculating racing league standings fro
    ```bash
    cd sim-standings
    ```
-3. Install dependencies (if any are added):
+3. Install dependencies:
    ```bash
    npm install
    ```
 
+## Quick Start
+
+1. Prepare your configuration files in `assets/`:
+   - `config.json` - League structure and scoring rules
+   - `drivers.json` - Driver information
+   - `events/` - Race result JSON files
+
+2. Build the standings:
+   ```bash
+   npm run build
+   ```
+
+3. Start the web server:
+   ```bash
+   npm start
+   ```
+
+4. Access standings at `http://localhost:3001/`
+
 ## Usage
 
-### Running the Application
+### Building Standings Data
+
+To process race results and generate standings files:
+
+```bash
+npm run build
+```
+
+This will:
+1. Load the league configuration from `assets/config.json`
+2. Load driver information from `assets/drivers.json`
+3. Process all race results from `assets/events/` directory
+4. Generate standings JSON files in the `public/` directory
+
+### Running the Server
+
+To start the Express web server that serves the standings:
 
 ```bash
 npm start
 ```
 
 This will:
-1. Load the league configuration from `assets/config.json`
-2. Load driver information from `assets/drivers.json`
-3. Process all race results from `assets/results/` directory
-4. Generate standings files in the `output/` directory
+1. Start the server on `http://localhost:3001`
+2. Serve standings data from the `public/` directory
+3. Make standings accessible via HTTP endpoints
+
+## Server Endpoints
+
+- **Root**: `http://localhost:3001/` - Returns 'OK'
+- **Static Files**: All files in the `public/` directory are automatically served (e.g., `standings.json` at `http://localhost:3001/standings.json`)
 
 ### Input Files
 
@@ -96,19 +135,19 @@ List of all drivers participating in the league:
 ]
 ```
 
-#### `assets/results/`
+#### `assets/events/`
 JSON files containing race results for each event. Files should be named `eventresult-{eventId}.json`.
 
 ### Output Files
 
-The application generates standings files in the `output/` directory in the format:
-`{class}_round_{roundNumber}.json`
+The application generates standings files in the `public/` directory in the format:
+- `{class}_latest.json` - Current standings for each class
+- `{class}_round_{roundNumber}.json` - Standings after each completed round
 
 **Example files**:
-- `club_round_1.json`
-- `inter_round_1.json`
-- `pro_round_1.json`
-- etc.
+- `club_latest.json`, `club_round_1.json`, `club_round_2.json`, etc.
+- `inter_latest.json`, `inter_round_1.json`, `inter_round_2.json`, etc.
+- `pro_latest.json`, `pro_round_1.json`, `pro_round_2.json`, etc.
 
 **Output format**:
 ```json
