@@ -58,7 +58,7 @@ class AssetManager {
     }
 
     writeStandings(cls, roundNumber, standings) {
-        const roundPath = path.join(STANDINGS_DIR, `${cls}_${roundNumber}.json`);
+        const roundPath = path.join(STANDINGS_DIR, `${cls}_round_${roundNumber}.json`);
         this.writeJsonFile(roundPath, standings);
 
         const latestPath = path.join(STANDINGS_DIR, `${cls}_latest.json`);
