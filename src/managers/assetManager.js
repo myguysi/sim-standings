@@ -9,7 +9,6 @@ const DRIVERS_FILE = path.join(ASSETS_DIR, 'drivers.json');
 const CONFIG_FILE = path.join(ASSETS_DIR, 'config.json');
 
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
-const STANDINGS_DIR = path.join(PUBLIC_DIR, 'standings');
 
 class AssetManager {
     constructor(appContext) {
@@ -33,12 +32,8 @@ class AssetManager {
 
         if (!fs.existsSync(PUBLIC_DIR)) {
             fs.mkdirSync(PUBLIC_DIR);
-        }
-
-        if (!fs.existsSync(STANDINGS_DIR)) {
-            fs.mkdirSync(STANDINGS_DIR);
         } else {
-            fs.readdirSync(STANDINGS_DIR).forEach(file => fs.unlinkSync(path.join(STANDINGS_DIR, file)));
+            fs.readdirSync(PUBLIC_DIR).forEach(file => fs.unlinkSync(path.join(PUBLIC_DIR, file)));
         }
     }
 
@@ -58,10 +53,10 @@ class AssetManager {
     }
 
     writeStandings(cls, roundNumber, standings) {
-        const roundPath = path.join(STANDINGS_DIR, `${cls}_round_${roundNumber}.json`);
+        const roundPath = path.join(PUBLIC_DIR, `${cls}_round_${roundNumber}.json`);
         this.writeJsonFile(roundPath, standings);
 
-        const latestPath = path.join(STANDINGS_DIR, `${cls}_latest.json`);
+        const latestPath = path.join(PUBLIC_DIR, `${cls}_latest.json`);
         this.writeJsonFile(latestPath, standings);
     }
 
