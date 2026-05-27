@@ -77,6 +77,15 @@ class EventProcessor {
             reason,
         });
 
+        driverStanding
+            .addEvent({ eventId: roundId })
+            .addPoints({
+                driverId: driver.id,
+                eventId: roundId,
+                points,
+                reason,
+            });
+
         // Update dropped rounds if the driver has more rounds than the allowed dropped rounds for the format
         if (driverStanding.roundsCounted > roundFormat.droppedRounds) {
             // Sort the round results to find the lowest points to drop
