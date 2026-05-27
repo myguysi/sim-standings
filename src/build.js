@@ -26,7 +26,7 @@
  *                       { driverId, results: ProcessedResult[], totalPoints, position }
  *
  *   ClassStandings    — a class name paired with its ranked driver standings
- *                       { className, standings: DriverStanding[] }
+ *                       { classId, standings: DriverStanding[] }
  *
  *   Driver            — registry entry, used to resolve class membership
  *                       { id, name, team, class }
@@ -40,6 +40,12 @@
  */
 
 const fs = require('fs');
+
+const classConfigs = [
+    { id: 'pro', name: 'Pro' },
+    { id: 'inter', name: 'Inter' },
+    { id: 'club', name: 'Club' },
+];
 
 // eventProcessor.js
 
@@ -66,17 +72,21 @@ function assignFinishPoints(eventResult, eventIndex) {
 }
 
 function assignPolePoints(eventResult, eventIndex) {
-    const sortedByStart = [...eventResult].sort((a, b) => a.startPositionOverall - b.startPositionOverall);
+    const sortedByStart = [...eventResult]
+        .filter((r) => r.startPositionOverall !== null)
+        .sort((a, b) => a.startPositionOverall - b.startPositionOverall);
     sortedByStart[0].points += pointsForPole;
     sortedByStart[0].pointsAllocations.push({ reason: 'Pole Position', points: pointsForPole });
-    eventResult.forEach((result, index) => {
-        result.startPositionClass = index + 1;
+    sortedByStart.forEach((result, startPositionIndex) => {
+        result.startPositionClass = startPositionIndex + 1;
     });
     return eventResult;
 }
 
 function assignFastestLapPoints(eventResult, eventIndex) {
-    const sortedByFastest = [...eventResult].sort((a, b) => a.fastestLapTime - b.fastestLapTime);
+    const sortedByFastest = [...eventResult]
+        .filter((r) => r.fastestLapTime !== Number.POSITIVE_INFINITY && r.fastestLapTime !== null)
+        .sort((a, b) => a.fastestLapTime - b.fastestLapTime);
     sortedByFastest[0].points += pointsForFastestLap;
     sortedByFastest[0].pointsAllocations.push({ reason: 'Fastest Lap', points: pointsForFastestLap });
     return eventResult;
@@ -123,13 +133,14 @@ function buildStandings(driverStandings) {
 
 // transformers.js
 
-function parseResults(eventResult, driverRegistry) {
+function parseResults(eventResult, classDrivers) {
     const totalLaps = eventResult[0].laps_complete;
 
     // Map raw event results to ProcessedResult format
     const results = eventResult.map((r) => ({
         driverId: r.cust_id,
         driverName: r.display_name,
+        teamName: classDrivers.find((d) => d.id === r.cust_id)?.team ?? '--',
         finishPositionOverall: r.finish_position,
         finishPositionClass: null, // To be calculated later
         startPositionOverall: r.starting_position,
@@ -158,11 +169,12 @@ function parseResults(eventResult, driverRegistry) {
     
     // Add DNS entries for any drivers in the registry who are missing from the results
     const participants = results.map((r) => r.driverId);
-    const missingDrivers = Array.from(driverRegistry.values()).filter((d) => !participants.includes(d.id));
+    const missingDrivers = classDrivers.filter((d) => !participants.includes(d.id));
     missingDrivers.forEach((d) => {
         results.push({
             driverId: d.id,
             driverName: d.name,
+            teamName: d.team ?? '--',
             finishPositionOverall: null,
             finishPositionClass: null,
             startPositionOverall: null,
@@ -191,7 +203,7 @@ function splitIntoClasses(allEventResults, driverRegistry) {
             if (!driver) {
                 throw new Error(`No driver found for ${result.display_name} (${result.cust_id})`);
             }
-            const existing = map.get(driver.class) ?? { className: driver.class, eventResults: [] };
+            const existing = map.get(driver.class) ?? { classId: driver.class, eventResults: [] };
             const results = [...existing.eventResults];
             if (!results[eventIndex]) {
                 results[eventIndex] = [];
@@ -210,7 +222,14 @@ function groupByDriver(processedRaces) {
 
     processedRaces.forEach((race) => {
         race.forEach((result) => {
-            const existing = map.get(result.driverId) ?? { driverId: result.driverId, driverName: result.driverName, totalPoints: 0, results: [], droppedResults: [] };
+            const existing = map.get(result.driverId) ?? {
+                driverId: result.driverId,
+                driverName: result.driverName,
+                teamName: result.teamName,
+                totalPoints: 0,
+                results: [],
+                droppedResults: []
+            };
             map.set(result.driverId, { ...existing, results: [...existing.results, result] });
         });
     });
@@ -232,8 +251,16 @@ function getDrivers() {
     return JSON.parse(file);
 }
 
+function validateClassDirectory(classId) {
+    const dir = `public/standings/${classId}`;
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+}
+
 function saveStandings(classId, classStandings) {
-    fs.writeFileSync(`public/standings/${classId}.json`, JSON.stringify(classStandings, null, 2));
+    validateClassDirectory(classId);
+    fs.writeFileSync(`public/standings/${classId}/raw.json`, JSON.stringify(classStandings, null, 2));
 }
 
 function clearStandings() {
@@ -248,17 +275,22 @@ function clearStandings() {
 
 // coordinator.js
 
-function processClass({ className, eventResults }, driverRegistry) {
-    const parsedEvents = eventResults.map((eventResult) => parseResults(eventResult, driverRegistry));
+function getClassDrivers(classId, driverRegistry) {
+    return Array.from(driverRegistry.values()).filter((d) => d.class === classId);
+}
+
+function processClass({ classId, eventResults }, driverRegistry) {
+    const classDrivers = getClassDrivers(classId, driverRegistry);
+    const parsedEvents = eventResults.map((eventResult) => parseResults(eventResult, classDrivers));
     const processedEvents = parsedEvents.map((event, index) => processEvent(event, index));
     const groupedByDriver = groupByDriver(processedEvents);
     const standings = buildStandings(groupedByDriver);
-    return { className, standings };
+    return { classId, standings };
 }
 
 function processSeasonToDate() {
-    // Clear previous outputs
-    clearStandings();
+    // // Clear previous outputs
+    // clearStandings();
 
     // Load inputs
     const allEventResults = getEventResults();
@@ -270,13 +302,62 @@ function processSeasonToDate() {
     const classStandings = classes.map((classData) => processClass(classData, driverRegistry));
 
     // Save outputs
-    classStandings.forEach(({ className, standings }) => {
-        saveStandings(className, standings);
+    classStandings.forEach(({ classId, standings }) => {
+        saveStandings(classId, standings);
     });
+
+    return classStandings;
+}
+
+
+// renderer.js
+
+function renderStandings(classStanding) {
+    const template = fs.readFileSync('assets/template.html', 'utf-8');
+
+    const roundHeaders = classStanding.standings[0]?.results.map((r, index) => `<th class="text-nowrap text-center">R${index + 1}</th>`).join('') ?? '';
+
+    const tableRows = classStanding.standings.map((standing, index) => {
+        const roundCells = standing.results.map((result) => {
+            const dropped = standing.droppedResults.includes(result);
+            return `<td class="text-center ${dropped ? 'text-decoration-line-through text-secondary' : ''}">${result.points}</td>`;
+        }).join('');
+
+        return `
+            <tr>
+                <td class="text-center">${index + 1}</td>
+                <td class="text-nowrap">${standing.driverName}</td>
+                <td class="text-nowrap">${standing.teamName}</td>
+                ${roundCells}
+                <td class="text-center">${standing.totalPoints}</td>
+            </tr>
+        `;
+    }).join('');
+
+    const navItems = classConfigs.map(({ id, name }) => `
+        <li class="nav-item">
+            <a class="nav-link ${id === classStanding.classId ? 'active' : ''}" href="/${id}">
+                ${name}
+            </a>
+        </li>
+    `).join('');
+
+    const title = classConfigs.find((c) => c.id === classStanding.classId)?.name;
+
+    const html = template
+        .replace('{pageTitle}', `SRi - ${title} Standings`)
+        .replace('{headingTitle}', `${title} Standings`)
+        .replace('{roundHeaders}', roundHeaders)
+        .replace('{tableRows}', tableRows)
+        .replace('{navItems}', navItems);
+
+    fs.writeFileSync(`public/standings/${classStanding.classId}/index.html`, html);
 }
 
 
 // app.js
 
-processSeasonToDate();
+const classStandings = processSeasonToDate();
+classStandings.forEach(renderStandings);
+
 console.log('Build complete!');
