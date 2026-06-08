@@ -134,23 +134,23 @@ function buildStandings(driverStandings) {
 // transformers.js
 
 function parseResults(eventResult, classDrivers) {
-    const totalLaps = eventResult[0].laps_complete;
+    const totalLaps = eventResult[0].lapsComplete;
 
     // Map raw event results to ProcessedResult format
     const results = eventResult.map((r) => ({
-        driverId: r.cust_id,
-        driverName: r.display_name,
-        teamName: classDrivers.find((d) => d.id === r.cust_id)?.team ?? '--',
-        finishPositionOverall: r.finish_position,
+        driverId: r.custId,
+        driverName: r.displayName,
+        teamName: classDrivers.find((d) => d.id === r.custId)?.team ?? '--',
+        finishPositionOverall: r.finishPosition,
         finishPositionClass: null, // To be calculated later
-        startPositionOverall: r.starting_position,
+        startPositionOverall: r.startingPosition,
         startPositionClass: null, // To be calculated later
-        fastestLapTime: r.best_lap_time > 0 ? r.best_lap_time : Number.POSITIVE_INFINITY,
-        status: r.reason_out,
+        fastestLapTime: r.bestLapTime > 0 ? r.bestLapTime : Number.POSITIVE_INFINITY,
+        status: r.reasonOut,
         points: 0,
         pointsAllocations: [],
-        lapsComplete: r.laps_complete,
-        lapsCompletePercentage: Math.round(r.laps_complete / totalLaps * 100) / 100,
+        lapsComplete: r.lapsComplete,
+        lapsCompletePercentage: Math.round(r.lapsComplete / totalLaps * 100) / 100,
     }));
 
     // Calculate class start positions
@@ -195,13 +195,13 @@ function splitIntoClasses(allEventResults, driverRegistry) {
     const map = new Map();
 
     allEventResults.forEach((eventResult, eventIndex) => {
-        const raceSession = eventResult.data.session_results.find((sr) => sr.simsession_name === 'RACE');
+        const raceSession = eventResult.sessionResults.find((sr) => sr.simsessionName === 'RACE');
         const results = raceSession.results;
 
         results.forEach((result) => {
-            const driver = driverRegistry.get(result.cust_id);
+            const driver = driverRegistry.get(result.custId);
             if (!driver) {
-                throw new Error(`No driver found for ${result.display_name} (${result.cust_id})`);
+                throw new Error(`No driver found for ${result.displayName} (${result.custId})`);
             }
             const existing = map.get(driver.class) ?? { classId: driver.class, eventResults: [] };
             const results = [...existing.eventResults];
