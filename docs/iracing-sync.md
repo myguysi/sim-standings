@@ -515,22 +515,41 @@ Notes:
 - All interpolated values are passed through `escapeHtml()`.
 - No client-side JavaScript is involved; the feature works with JS disabled.
 
-### Optional: rebuild standings after sync
+### Rebuild standings after sync
 
-`/sync` only refreshes the raw event files — it does **not** regenerate standings. To
-make sync end-to-end, either:
+`/sync` regenerates standings end-to-end: after writing the raw event files it calls
+`build()` to recompute and re-render each class's page, so the published standings
+reflect the new data immediately. The success response includes `rebuilt: true`.
 
-- Call the build pipeline after a successful sync. Refactor `build.js` to export its
-  entry points (`processSeasonToDate`, `renderStandings`) instead of running on import,
-  then invoke them from the endpoint; **or**
-- Keep them separate and document that you run `npm run build` (or hit a future
-  `/build` endpoint) after `/sync`.
+To make this possible, `build.js` exports a `build()` function and only auto-runs when
+invoked directly:
 
-> Note: `build.js` currently runs its pipeline as a side effect of `require()` (the last
-> lines call `processSeasonToDate()` and `renderStandings`). If the endpoint needs to
-> trigger a build, refactor those trailing lines into an exported `function main()` and
-> guard the auto-run with `if (require.main === module) main();` so importing it from the
-> server doesn't run a build immediately.
+```js
+// src/build.js (tail)
+function build() {
+    const classStandings = processSeasonToDate();
+    classStandings.forEach(renderStandings);
+    return classStandings;
+}
+
+// Auto-run for `node src/build.js` / `npm run build`, but not when imported.
+if (require.main === module) {
+    build();
+    console.log('Build complete!');
+}
+
+module.exports = { build };
+```
+
+```js
+// src/server.js (inside POST /sync, after a successful sync)
+const summary = await syncSeason({ leagueId, seasonId });
+build(); // regenerate standings from the freshly synced event files
+respond(200, { ok: true, rebuilt: true, ...summary });
+```
+
+`build()` is synchronous (it uses `fs` sync calls); if it throws, the existing `/sync`
+catch reports the error. The standalone `npm run build` step still works unchanged.
 
 ---
 
@@ -580,7 +599,8 @@ Confirm the exact exported error class names against the installed package's typ
 - [x] Add `express.urlencoded({ extended: true })` middleware
 - [x] Add `GET /sync` rendering the native HTML form (`renderSyncForm`, no client JS;
       shows iRacing connection status + auth link)
-- [ ] (Optional) refactor `build.js` to export `main()` and trigger a rebuild after sync
+- [x] Refactor `build.js` to export `build()` (auto-run guarded by `require.main`) and
+      trigger a rebuild from `/sync` after a successful sync (`rebuilt: true` in response)
 - [x] Tested offline: build passes on migrated data; `/sync` form + 401 guard + JSON/HTML
       negotiation verified; `GET /auth/iracing` redirects to iRacing with the correct
       `client_id`, redirect URI, `state`, and PKCE challenge

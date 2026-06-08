@@ -357,7 +357,21 @@ function renderStandings(classStanding) {
 
 // app.js
 
-const classStandings = processSeasonToDate();
-classStandings.forEach(renderStandings);
+/**
+ * Run the full pipeline: process the season's event results into standings and
+ * render an HTML page per class. Returns the computed class standings.
+ */
+function build() {
+    const classStandings = processSeasonToDate();
+    classStandings.forEach(renderStandings);
+    return classStandings;
+}
 
-console.log('Build complete!');
+// Run automatically when invoked directly (`node src/build.js` / `npm run build`),
+// but not when imported by the server, which calls build() itself after a sync.
+if (require.main === module) {
+    build();
+    console.log('Build complete!');
+}
+
+module.exports = { build };

@@ -7,6 +7,7 @@ const {
     handleCallback,
     isAuthenticated,
 } = require('./iracing');
+const { build } = require('./build');
 const config = require('../assets/config.json');
 
 const app = express();
@@ -86,7 +87,9 @@ app.post('/sync', async (req, res) => {
 
     try {
         const summary = await syncSeason({ leagueId, seasonId });
-        respond(200, { ok: true, ...summary });
+        // Regenerate standings from the freshly synced event files.
+        build();
+        respond(200, { ok: true, rebuilt: true, ...summary });
     } catch (err) {
         // The SDK throws typed errors (OAuthError, IRacingError with isUnauthorized,
         // rate-limit and maintenance-mode). Surface a useful status + message.
