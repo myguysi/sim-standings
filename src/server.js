@@ -1,11 +1,18 @@
 require('dotenv').config();
 
 const express = require('express');
-const { syncSeason } = require('./iracing');
+const {
+    syncSeason,
+    getAuthorizationUrl,
+    handleCallback,
+    isAuthenticated,
+} = require('./iracing');
 const config = require('../assets/config.json');
 
 const app = express();
-const port = 3001;
+// Env-driven so the port can change in production. Defaults to 3000 to match the
+// registered local redirect URI (http://127.0.0.1:3000/auth/iracing/callback).
+const port = process.env.PORT || 3000;
 
 app.use(express.static('public/standings'));
 // Parse urlencoded form bodies (the POST /sync form submission).
@@ -15,10 +22,37 @@ app.get('/', (req, res) => {
     res.send('OK');
 });
 
+// GET /auth/iracing — kick off the OAuth Authorization Code flow.
+app.get('/auth/iracing', async (req, res) => {
+    try {
+        res.redirect(await getAuthorizationUrl());
+    } catch (err) {
+        console.error('Failed to build authorization URL:', err);
+        res.status(500).send(renderSyncResult({ ok: false, error: err.message }));
+    }
+});
+
+// GET /auth/iracing/callback — iRacing redirects here with ?code&state (or ?error).
+app.get('/auth/iracing/callback', async (req, res) => {
+    const { code, state, error, error_description: errorDescription } = req.query;
+    if (error) {
+        return res
+            .status(400)
+            .send(renderSyncResult({ ok: false, error: `${error}: ${errorDescription ?? ''}` }));
+    }
+    try {
+        await handleCallback({ code, state });
+        res.redirect('/sync');
+    } catch (err) {
+        console.error('OAuth callback failed:', err);
+        res.status(400).send(renderSyncResult({ ok: false, error: err.message }));
+    }
+});
+
 // GET /sync — render the HTML form that POSTs to /sync.
 app.get('/sync', (req, res) => {
     const { leagueName, leagueId, seasonId } = config;
-    res.send(renderSyncForm({ leagueName, leagueId, seasonId }));
+    res.send(renderSyncForm({ leagueName, leagueId, seasonId, authed: isAuthenticated() }));
 });
 
 // POST /sync — fetch the season's results from iRacing and write them to disk.
@@ -35,6 +69,13 @@ app.post('/sync', async (req, res) => {
             default: () => res.json(payload),
         });
     };
+
+    if (!isAuthenticated()) {
+        return respond(401, {
+            ok: false,
+            error: 'Not authenticated with iRacing — visit /auth/iracing first',
+        });
+    }
 
     if (!leagueId || !seasonId) {
         return respond(400, {
@@ -89,19 +130,24 @@ function page(title, body) {
 </html>`;
 }
 
-function renderSyncForm({ leagueName, leagueId, seasonId }) {
+function renderSyncForm({ leagueName, leagueId, seasonId, authed }) {
     const configured = leagueId && seasonId;
+    const ready = configured && authed;
     return page('Sync Results', `
   <h1>Sync Results</h1>
   <p class="meta">
     League: <strong>${escapeHtml(leagueName)}</strong><br>
-    leagueId: <strong>${escapeHtml(leagueId)}</strong> · seasonId: <strong>${escapeHtml(seasonId)}</strong>
+    leagueId: <strong>${escapeHtml(leagueId)}</strong> · seasonId: <strong>${escapeHtml(seasonId)}</strong><br>
+    iRacing: <strong>${authed ? 'connected' : 'not connected'}</strong>
   </p>
   ${configured
       ? ''
       : '<p class="error">Set <code>leagueId</code> and <code>seasonId</code> in <code>assets/config.json</code> first.</p>'}
+  ${authed
+      ? ''
+      : '<p><a href="/auth/iracing">Connect iRacing account</a> to enable syncing.</p>'}
   <form method="POST" action="/sync">
-    <button type="submit" ${configured ? '' : 'disabled'}>Sync this season</button>
+    <button type="submit" ${ready ? '' : 'disabled'}>Sync this season</button>
   </form>`);
 }
 

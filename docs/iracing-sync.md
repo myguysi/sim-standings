@@ -41,7 +41,7 @@ After this feature, a single call to `POST /sync` will:
 - Dual CommonJS/ESM — `require()` works, so it fits this project's `"type": "commonjs"` setup with no changes.
 - Auto-transforms API responses from `snake_case` → **`camelCase`** and **strips the
   `{ type, data }` envelope** (`results.get()` returns the data object directly).
-- Handles OAuth2 token acquisition + refresh, rate-limit and maintenance-mode errors internally.
+- Handles OAuth2 token refresh, rate-limit and maintenance-mode errors internally.
 
 Install:
 
@@ -55,17 +55,30 @@ npm install iracing-data-client dotenv
 
 ## 3. Prerequisites: credentials & `.env`
 
-You already have iRacing OAuth credentials (Client ID + Secret). The client uses the
-**password-limited** OAuth flow, which needs four values. Put them in a `.env` file at
-the project root:
+> **Auth flow:** the registered client (`489822-league`) uses the **Authorization Code**
+> flow — *not* password-limited. It acts on behalf of a user, so a one-time browser
+> login is required before the API can be called (see [§4](#4-new-module-srciracingjs)
+> and [§8](#8-the-sync-endpoint)). Password-limited would skip the browser step but is a
+> different client type.
+
+Put the client credentials and OAuth settings in a `.env` file at the project root:
 
 ```dotenv
 # .env  — DO NOT COMMIT
-IRACING_CLIENT_ID=your-client-id
+IRACING_CLIENT_ID=489822-league
 IRACING_CLIENT_SECRET=your-client-secret
-IRACING_USERNAME=your-iracing-email
-IRACING_PASSWORD=your-iracing-password
+
+# Must exactly match a redirect URI registered with the client.
+# Production: https://ileague.io/auth/iracing/callback
+IRACING_REDIRECT_URI=http://127.0.0.1:3000/auth/iracing/callback
+
+# Server port. 3000 matches the registered local redirect URI above.
+PORT=3000
 ```
+
+The **redirect URI must exactly match** one registered with iRacing. The local URI is
+`http://127.0.0.1:3000/auth/iracing/callback` (note `127.0.0.1`, not `localhost`, and
+port `3000`), which is why the server defaults to port 3000.
 
 Add `.env` to `.gitignore` (current `.gitignore` ignores `.DS_Store`, `node_modules`,
 `public` — append `.env`):
@@ -88,92 +101,127 @@ require('dotenv').config();
 
 ## 4. New module: `src/iracing.js`
 
-Encapsulate all API interaction in one module so the endpoint stays thin and the
-client is easy to mock in tests.
+All API interaction lives in one module. Because this is the Authorization Code flow,
+the module exposes both the **OAuth helpers** (to obtain tokens) and `syncSeason` (to
+use them):
+
+- `getAuthorizationUrl()` — builds the iRacing authorize URL via
+  `buildAuthorizationUrl({ clientId, redirectUri, scope })`, and remembers the returned
+  `state` + PKCE `verifier` in memory for the callback.
+- `handleCallback({ code, state })` — validates `state`, then calls
+  `exchangeAuthorizationCode({ clientId, clientSecret, code, redirectUri, codeVerifier })`
+  and stores the resulting tokens.
+- `isAuthenticated()` — whether we currently hold tokens.
+- `syncSeason({ leagueId, seasonId })` — builds an `authorization-code` client from the
+  stored tokens (throws if unauthenticated) and fetches/saves the season.
+
+**Token storage is in-memory only** (single-user local backend): a server restart
+requires re-authorising. `onTokenRefresh` keeps the in-memory copy current as the SDK
+refreshes the access token.
 
 ```js
-// src/iracing.js
-const fs = require('fs');
-const { IRacingDataClient } = require('iracing-data-client');
+// src/iracing.js (abridged — see the file for the full version)
+const {
+    IRacingDataClient,
+    buildAuthorizationUrl,
+    exchangeAuthorizationCode,
+} = require('iracing-data-client');
 
-const EVENTS_DIR = 'assets/events';
+const SCOPE = process.env.IRACING_SCOPE || 'openid';
+const redirectUri = () =>
+    process.env.IRACING_REDIRECT_URI || 'http://127.0.0.1:3000/auth/iracing/callback';
 
-function createClient() {
-    return new IRacingDataClient({
-        auth: {
-            type: 'password-limited',
-            clientId: process.env.IRACING_CLIENT_ID,
-            clientSecret: process.env.IRACING_CLIENT_SECRET,
-            username: process.env.IRACING_USERNAME,
-            password: process.env.IRACING_PASSWORD,
-        },
-    });
-}
+let tokens = null;       // { accessToken, refreshToken, expiresAt }
+let pendingAuth = null;  // { state, verifier } between redirect and callback
 
-/**
- * Fetch every result for a league season and write one file per session.
- * Returns a summary: { seasonId, sessionCount, subsessionIds, written }.
- */
-async function syncSeason({ leagueId, seasonId }) {
-    const iracing = createClient();
+const isAuthenticated = () => Boolean(tokens && tokens.accessToken);
 
-    // 1. List sessions in this league season that have results.
-    //    resultsOnly:true filters out scheduled/cancelled sessions with no result.
-    const sessions = await iracing.league.seasonSessions({
-        leagueId,
-        seasonId,
-        resultsOnly: true,
-    });
-
-    if (!fs.existsSync(EVENTS_DIR)) {
-        fs.mkdirSync(EVENTS_DIR, { recursive: true });
-    }
-
-    const subsessionIds = [];
-
-    // 2. Fetch + save each subsession result. Sequential to stay friendly with
-    //    iRacing rate limits (the SDK also surfaces RateLimitError if hit).
-    for (const session of sessions) {
-        const subsessionId = session.subsessionId;
-        if (!subsessionId) continue;
-
-        const result = await iracing.results.get({ subsessionId });
-
-        fs.writeFileSync(
-            `${EVENTS_DIR}/eventresult-${subsessionId}.json`,
-            JSON.stringify(result, null, 2),
-        );
-        subsessionIds.push(subsessionId);
-    }
-
-    return {
-        leagueId,
-        seasonId,
-        sessionCount: sessions.length,
-        written: subsessionIds.length,
-        subsessionIds,
+function storeTokens(token) {
+    tokens = {
+        accessToken: token.access_token,
+        refreshToken: token.refresh_token ?? tokens?.refreshToken,
+        expiresAt: Math.floor(Date.now() / 1000) + token.expires_in,
     };
 }
 
-module.exports = { syncSeason };
+async function getAuthorizationUrl() {
+    const { url, state, pkce } = await buildAuthorizationUrl({
+        clientId: process.env.IRACING_CLIENT_ID,
+        redirectUri: redirectUri(),
+        scope: SCOPE,
+    });
+    pendingAuth = { state, verifier: pkce?.verifier };
+    return url;
+}
+
+async function handleCallback({ code, state }) {
+    if (!pendingAuth || state !== pendingAuth.state) {
+        throw new Error('Invalid or expired OAuth state — start again at /auth/iracing');
+    }
+    const token = await exchangeAuthorizationCode({
+        clientId: process.env.IRACING_CLIENT_ID,
+        clientSecret: process.env.IRACING_CLIENT_SECRET,
+        code,
+        redirectUri: redirectUri(),
+        codeVerifier: pendingAuth.verifier,
+    });
+    storeTokens(token);
+    pendingAuth = null;
+}
+
+function createClient() {
+    if (!isAuthenticated()) {
+        throw new Error('Not authenticated with iRacing — visit /auth/iracing first');
+    }
+    return new IRacingDataClient({
+        auth: {
+            type: 'authorization-code',
+            clientId: process.env.IRACING_CLIENT_ID,
+            clientSecret: process.env.IRACING_CLIENT_SECRET,
+            tokens,
+            onTokenRefresh: (token) => storeTokens(token),
+        },
+    });
+}
+```
+
+`syncSeason` itself is flow-agnostic — it just uses `createClient()`:
+
+```js
+async function syncSeason({ leagueId, seasonId }) {
+    const iracing = createClient();
+
+    // season_sessions returns { success, subscribed, leagueId, seasonId, sessions: [] }.
+    const { sessions } = await iracing.league.seasonSessions({
+        leagueId,
+        seasonId,
+        resultsOnly: true, // skip scheduled/cancelled sessions with no result
+    });
+
+    // Keep only sessions with a subsession id; order by launch time (round order).
+    const runSessions = (sessions ?? [])
+        .filter((s) => s && s.subsessionId)
+        .sort((a, b) => new Date(a.launchAt ?? 0) - new Date(b.launchAt ?? 0));
+
+    // ... fetch results.get({ subsessionId }) for each and write
+    //     assets/events/eventresult-<subsessionId>.json ...
+}
 ```
 
 ### Notes & things to verify against the live API
 
-- `league.seasonSessions(...)` returns an array of session objects. Confirm the
-  subsession id field is `subsessionId` (camelCase of `subsession_id`) and adjust if
-  the SDK names it differently. A league session can have **splits** (multiple
-  subsessions); `resultsOnly` plus the per-session `subsessionId` should be the primary
-  result for a league race, but inspect one response to be sure you aren't missing or
-  duplicating splits.
+- `league.seasonSessions(...)` returns an **object** `{ ..., sessions: [] }` (the docs
+  example showing a bare array is misleading) — destructure `.sessions`.
+- `sessions` items are **untyped** in the SDK. We read `session.subsessionId` and
+  `session.launchAt`; confirm those names against a real response, and check how league
+  **splits** (multiple subsessions per race) appear so you don't miss/duplicate them.
 - `results.get({ subsessionId })` returns the **camelCase result object directly** (no
   `{ type, data }` wrapper). That object is what we save — see the field mapping below.
 - The file name (`eventresult-<subsessionId>.json`) and sort order matter: `build.js`'s
   `getEventResults()` reads `assets/events/*.json` **sorted by filename** and treats
-  array order as round order (round 1, round 2, …). If subsession IDs do not sort into
-  the chronological round order you want, sort sessions by their launch/start time and
-  rename files with a zero-padded round prefix (e.g. `01-eventresult-<id>.json`).
-  See [§7](#7-round-ordering).
+  array order as round order. The existing subsession IDs sort into correct round order;
+  if a future season's IDs aren't monotonic, switch to a zero-padded round prefix in the
+  filename (e.g. `01-eventresult-<id>.json`). See [§7](#7-round-ordering).
 
 ---
 
@@ -275,22 +323,38 @@ This also keeps the synced rounds aligned with `config.events[i].format`.
 
 ## 8. The `/sync` endpoint
 
-Wire it into `src/server.js`. Use `POST` because it has side effects (writes files).
+Wire it into `src/server.js`, alongside the two OAuth routes the Authorization Code flow
+needs. `POST /sync` has side effects (writes files) and is **content-negotiated**: an
+HTML results page for browser form submissions, JSON for API/`curl`/programmatic callers.
 The form is a plain `<form method="POST" action="/sync">` — no client-side JavaScript —
-and `POST /sync` **content-negotiates** its response: an HTML results page for browser
-form submissions, JSON for API/`curl`/programmatic callers. This "use the platform"
-approach works with JS disabled and degrades gracefully.
+so it works with JS disabled.
+
+Routes:
+
+| Route | Purpose |
+| --- | --- |
+| `GET /auth/iracing` | Redirect to iRacing to start the OAuth flow |
+| `GET /auth/iracing/callback` | Exchange the `?code` for tokens, then redirect to `/sync` |
+| `GET /sync` | Render the form (shows connection status; links to auth if not connected) |
+| `POST /sync` | Sync the season (401 if not authenticated) |
 
 ```js
 // src/server.js
 require('dotenv').config();
 
 const express = require('express');
-const { syncSeason } = require('./iracing');
+const {
+    syncSeason,
+    getAuthorizationUrl,
+    handleCallback,
+    isAuthenticated,
+} = require('./iracing');
 const config = require('../assets/config.json');
 
 const app = express();
-const port = 3001;
+// Env-driven so the port can change in production. Defaults to 3000 to match the
+// registered local redirect URI (http://127.0.0.1:3000/auth/iracing/callback).
+const port = process.env.PORT || 3000;
 
 app.use(express.static('public/standings'));
 // Parse urlencoded form bodies (the POST /sync form submission).
@@ -300,26 +364,52 @@ app.get('/', (req, res) => {
     res.send('OK');
 });
 
+// GET /auth/iracing — start the OAuth Authorization Code flow.
+app.get('/auth/iracing', async (req, res) => {
+    res.redirect(await getAuthorizationUrl());
+});
+
+// GET /auth/iracing/callback — iRacing redirects here with ?code&state (or ?error).
+app.get('/auth/iracing/callback', async (req, res) => {
+    const { code, state, error, error_description: errorDescription } = req.query;
+    if (error) {
+        return res
+            .status(400)
+            .send(renderSyncResult({ ok: false, error: `${error}: ${errorDescription ?? ''}` }));
+    }
+    try {
+        await handleCallback({ code, state });
+        res.redirect('/sync');
+    } catch (err) {
+        res.status(400).send(renderSyncResult({ ok: false, error: err.message }));
+    }
+});
+
 // GET /sync — render the HTML form that POSTs to /sync.
 app.get('/sync', (req, res) => {
     const { leagueName, leagueId, seasonId } = config;
-    res.send(renderSyncForm({ leagueName, leagueId, seasonId }));
+    res.send(renderSyncForm({ leagueName, leagueId, seasonId, authed: isAuthenticated() }));
 });
 
 app.post('/sync', async (req, res) => {
     const { leagueId, seasonId } = config;
 
-    // res.format dispatches on the Accept header: browsers send text/html,
-    // API clients send application/json (or use curl -H "Accept: application/json").
+    // res.format dispatches on the Accept header (json first so curl/`*/*` get JSON;
+    // browsers send text/html and get the result page).
     const respond = (status, payload) => {
-        // json first so non-browser clients (curl/`*/*`) default to JSON; browsers
-        // explicitly send text/html and still get the HTML result page.
         res.status(status).format({
             json: () => res.json(payload),
             html: () => res.send(renderSyncResult(payload)),
             default: () => res.json(payload),
         });
     };
+
+    if (!isAuthenticated()) {
+        return respond(401, {
+            ok: false,
+            error: 'Not authenticated with iRacing — visit /auth/iracing first',
+        });
+    }
 
     if (!leagueId || !seasonId) {
         return respond(400, {
@@ -381,19 +471,24 @@ function page(title, body) {
 </html>`;
 }
 
-function renderSyncForm({ leagueName, leagueId, seasonId }) {
+function renderSyncForm({ leagueName, leagueId, seasonId, authed }) {
     const configured = leagueId && seasonId;
+    const ready = configured && authed;
     return page('Sync Results', `
   <h1>Sync Results</h1>
   <p class="meta">
     League: <strong>${escapeHtml(leagueName)}</strong><br>
-    leagueId: <strong>${escapeHtml(leagueId)}</strong> · seasonId: <strong>${escapeHtml(seasonId)}</strong>
+    leagueId: <strong>${escapeHtml(leagueId)}</strong> · seasonId: <strong>${escapeHtml(seasonId)}</strong><br>
+    iRacing: <strong>${authed ? 'connected' : 'not connected'}</strong>
   </p>
   ${configured
       ? ''
       : '<p class="error">Set <code>leagueId</code> and <code>seasonId</code> in <code>assets/config.json</code> first.</p>'}
+  ${authed
+      ? ''
+      : '<p><a href="/auth/iracing">Connect iRacing account</a> to enable syncing.</p>'}
   <form method="POST" action="/sync">
-    <button type="submit" ${configured ? '' : 'disabled'}>Sync this season</button>
+    <button type="submit" ${ready ? '' : 'disabled'}>Sync this season</button>
   </form>`);
 }
 
@@ -413,7 +508,7 @@ Notes:
 - **Content negotiation** via `res.format(...)` is the key bit: the same `POST /sync`
   serves the browser an HTML page and serves `curl`/API clients JSON, keyed off the
   `Accept` header. Test the JSON path with
-  `curl -X POST -H "Accept: application/json" localhost:3001/sync`.
+  `curl -X POST -H "Accept: application/json" 127.0.0.1:3000/sync`.
 - `express.urlencoded({ extended: true })` is added so a form POST body parses. The form
   carries no fields today (league/season come from `config.json`), but the middleware is
   in place if you later add inputs (e.g. a season override) — see [§6](#6-configjson-additions).
@@ -466,25 +561,31 @@ Confirm the exact exported error class names against the installed package's typ
 ## 10. Implementation checklist
 
 - [x] `npm install iracing-data-client dotenv`
-- [x] Create `.env` with the four `IRACING_*` vars; add `.env` to `.gitignore`
-      *(placeholder values for now — pending the regenerated client secret)*
-- [x] Add `leagueId` + `seasonId` to `assets/config.json` *(set to `0`; fill in real IDs)*
-- [x] Create `src/iracing.js` (`syncSeason`) — sorts sessions by `launchAt`, reads
-      `session.subsessionId`. **Still to verify against a live response:** split handling
-      and that `subsessionId`/`launchAt` are the right field names (sessions are untyped).
+- [x] Create `.env` (`IRACING_CLIENT_ID`, `IRACING_CLIENT_SECRET`, `IRACING_REDIRECT_URI`,
+      `PORT`); add `.env` to `.gitignore` *(client secret is a placeholder — pending the
+      regenerated value)*
+- [x] Set `leagueId` + `seasonId` in `assets/config.json` *(11991 / 131761)*
+- [x] Create `src/iracing.js` — Authorization Code helpers (`getAuthorizationUrl`,
+      `handleCallback`, `isAuthenticated`) + `syncSeason`. In-memory tokens,
+      `onTokenRefresh` keeps them current. **Verify against a live response:** split
+      handling and that `subsessionId`/`launchAt` are the right field names (untyped).
 - [x] Update the camelCase field accesses in `src/build.js`
       ([§5a](#5a-splitintoclasses) / [§5b](#5b-parseresults))
 - [x] Convert the 8 legacy snake_case event files — `src/migrate-events.js` (deep
       camelCase + envelope unwrap), already run. Idempotent / safe to re-run.
-- [x] Add `POST /sync` to `src/server.js` with `res.format()` content negotiation
-      (JSON for API/`*/*`, HTML page for browsers); `dotenv` loaded at the top
+- [x] Add OAuth routes `GET /auth/iracing` + `GET /auth/iracing/callback` to `src/server.js`
+- [x] Add `POST /sync` with `res.format()` content negotiation (JSON for API/`*/*`, HTML
+      page for browsers) + 401 when unauthenticated; `dotenv` loaded at the top
+- [x] Env-driven `PORT` (defaults to 3000 to match the registered redirect URI)
 - [x] Add `express.urlencoded({ extended: true })` middleware
-- [x] Add `GET /sync` rendering the native HTML form (`renderSyncForm`, no client JS)
+- [x] Add `GET /sync` rendering the native HTML form (`renderSyncForm`, no client JS;
+      shows iRacing connection status + auth link)
 - [ ] (Optional) refactor `build.js` to export `main()` and trigger a rebuild after sync
-- [x] Tested offline: build passes on migrated data; `/sync` form, validation guard, and
-      JSON/HTML negotiation all verified
-- [ ] **Pending credentials:** fill real `leagueId`/`seasonId` + client secret, then
-      `POST /sync` against the live API and confirm files land in `assets/events/`
+- [x] Tested offline: build passes on migrated data; `/sync` form + 401 guard + JSON/HTML
+      negotiation verified; `GET /auth/iracing` redirects to iRacing with the correct
+      `client_id`, redirect URI, `state`, and PKCE challenge
+- [ ] **Pending client secret:** once it arrives, complete the browser login at
+      `/auth/iracing`, then `POST /sync` and confirm files land in `assets/events/`
 
 > **Note on chronological ordering ([§7](#7-round-ordering)):** `syncSeason` sorts
 > sessions by `launchAt`, but files are written as `eventresult-<subsessionId>.json` and
@@ -498,20 +599,22 @@ Confirm the exact exported error class names against the installed package's typ
 
 | Call | Purpose | Key params |
 | --- | --- | --- |
+| `buildAuthorizationUrl({ clientId, redirectUri, scope })` | Build the authorize URL (+ `state`, PKCE) | returns `{ url, state, pkce }` |
+| `exchangeAuthorizationCode({ clientId, clientSecret, code, redirectUri, codeVerifier })` | Swap the callback code for tokens | returns `TokenResponse` |
 | `iracing.league.seasons({ leagueId })` | List a league's seasons | `leagueId`, `retired?` |
-| `iracing.league.seasonSessions({ leagueId, seasonId, resultsOnly })` | List sessions (with results) in a season | `leagueId`, `seasonId`, `resultsOnly?` |
+| `iracing.league.seasonSessions({ leagueId, seasonId, resultsOnly })` | List sessions; returns `{ ..., sessions: [] }` | `leagueId`, `seasonId`, `resultsOnly?` |
 | `iracing.results.get({ subsessionId })` | Full result for one subsession (camelCase, no envelope) | `subsessionId`, `includeLicenses?` |
 
-Client init (password-limited OAuth):
+Client init (Authorization Code OAuth — tokens obtained via the flow above):
 
 ```js
 const iracing = new IRacingDataClient({
     auth: {
-        type: 'password-limited',
+        type: 'authorization-code',
         clientId: process.env.IRACING_CLIENT_ID,
         clientSecret: process.env.IRACING_CLIENT_SECRET,
-        username: process.env.IRACING_USERNAME,
-        password: process.env.IRACING_PASSWORD,
+        tokens: { accessToken, refreshToken, expiresAt },
+        onTokenRefresh: (token) => persist(token), // here: update in-memory copy
     },
 });
 ```
