@@ -246,8 +246,10 @@ Event results are **fetched at runtime, not committed**. They live in `data/even
 `template.html`). The path is `EVENTS_DIR`, env-overridable, and **shared by `iracing.js`
 (writer) and `build.js` (reader)** — keep the two in sync.
 
-- **Gitignored:** `data/events/*.json`. A tracked `data/events/.gitkeep` ships the empty
-  directory so a fresh clone has it.
+- **Gitignored:** the whole `data/` directory — event results *and* the events-include
+  config (`data/events-config.json`, see [§4b](#4b-excluding-events-from-the-standings)).
+  It's all runtime state, so nothing under it is tracked; the directories self-create on
+  first run (below).
 - **Directories self-create** (safe for a fresh VPS deploy): `syncSeason()` does
   `mkdirSync(EVENTS_DIR, { recursive: true })` before writing; `getEventResults()`
   creates `EVENTS_DIR` and returns `[]` if it's missing; `build.js` creates
@@ -263,6 +265,27 @@ Event results are **fetched at runtime, not committed**. They live in `data/even
 > `EVENTS_DIR`) and a one-time browser auth to mint `.iracing-tokens.json` (or copy an
 > existing one across). After that, restarts re-sync on their own. `data/events/` and
 > `public/standings/` are created automatically.
+
+### 4b. Excluding events from the standings
+
+Not every synced session should count — e.g. a pre-season **media day** appears as a
+result but isn't a points round. Rather than hard-coding subsession IDs, the `/events`
+page lets you deselect events:
+
+- **`GET /events`** renders a checkbox per synced event (track + date), checked when the
+  event currently counts. **`POST /events`** writes the choices and rebuilds the standings.
+  Both are wired into `src/server.js` next to the `/sync` routes; `POST` is
+  content-negotiated like `/sync` (HTML page for browsers, JSON otherwise).
+- Choices persist to **`data/events-config.json`** — a `{ "<subsessionId>": boolean }` map,
+  written by `saveEventsConfig()` and read by `loadEventsConfig()` in `build.js`.
+- **Include by default:** only an explicit `false` excludes an event, so sessions synced
+  *after* the form was last saved still flow into the standings until someone deselects
+  them. A missing config file means "nothing excluded", so the build works before the
+  form is ever used.
+- `getEventResults()` drops the disabled events **before** the pipeline assigns round
+  indices, so the remaining events re-index as rounds 1..N. The round-dependent scoring
+  rules (1.5× for the final 3 rounds, drop-lowest from the first 7 — see
+  [§7](#7-round-ordering)) therefore count from the *included* events only.
 
 ---
 
@@ -384,6 +407,8 @@ Routes:
 | `GET /auth/iracing/callback` | Exchange the `?code` for tokens, then redirect to `/sync` |
 | `GET /sync` | Render the form (shows connection status; links to auth if not connected) |
 | `POST /sync` | Sync the season (401 if not authenticated) |
+| `GET /events` | Render the events form — a checkbox per synced event, checked = counts ([§4b](#4b-excluding-events-from-the-standings)) |
+| `POST /events` | Save include/exclude choices to `data/events-config.json`, then rebuild |
 
 ```js
 // src/server.js
