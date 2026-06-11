@@ -137,7 +137,33 @@ app.listen(port, () => {
     console.log(`App listening on port ${port}`);
     // Begin polling iRacing data API availability in the background.
     startPolling();
+    // Fetch the latest results on startup (event data isn't committed). Fire-and-forget
+    // so the server is responsive immediately; runInitialSync never throws.
+    runInitialSync();
 });
+
+// Sync the season and rebuild standings once at startup. Skips cleanly when not yet
+// authenticated or unconfigured, and swallows errors (e.g. iRacing API down) so a
+// failed sync never takes the server down — the user can retry via POST /sync.
+async function runInitialSync() {
+    const { leagueId, seasonId } = config;
+    if (!isAuthenticated()) {
+        console.log('Initial sync skipped: not authenticated with iRacing — visit /auth/iracing.');
+        return;
+    }
+    if (!leagueId || !seasonId) {
+        console.log('Initial sync skipped: leagueId/seasonId not set in assets/config.json.');
+        return;
+    }
+    try {
+        console.log('Running initial sync from iRacing…');
+        const summary = await syncSeason({ leagueId, seasonId });
+        build();
+        console.log(`Initial sync complete: ${summary.written} event(s) written, standings rebuilt.`);
+    } catch (err) {
+        console.error('Initial sync failed (will not block startup):', err.message);
+    }
+}
 
 
 // --- HTML rendering ---------------------------------------------------------

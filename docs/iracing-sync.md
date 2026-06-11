@@ -27,7 +27,8 @@ After this feature, a single call to `POST /sync` will:
 1. Read the target `leagueId` + `seasonId` from `assets/config.json`.
 2. Ask the iRacing API for every session in that league season that has results.
 3. Fetch the full result for each session.
-4. Write one file per session into `assets/events/`, ready for `build.js`.
+4. Write one file per session into the runtime data dir (`data/events/`, see
+   [§4a](#4a-runtime-data-directory--startup-sync)), ready for `build.js`.
 
 > **Decision (agreed):** We store the SDK's **camelCase** output directly and adapt
 > `build.js` to read camelCase — rather than transforming back to the raw snake_case
@@ -219,7 +220,7 @@ async function syncSeason({ leagueId, seasonId }) {
         .sort((a, b) => new Date(a.launchAt ?? 0) - new Date(b.launchAt ?? 0));
 
     // ... fetch results.get({ subsessionId }) for each and write
-    //     assets/events/eventresult-<subsessionId>.json ...
+    //     data/events/eventresult-<subsessionId>.json ...
 }
 ```
 
@@ -233,10 +234,35 @@ async function syncSeason({ leagueId, seasonId }) {
 - `results.get({ subsessionId })` returns the **camelCase result object directly** (no
   `{ type, data }` wrapper). That object is what we save — see the field mapping below.
 - The file name (`eventresult-<subsessionId>.json`) and sort order matter: `build.js`'s
-  `getEventResults()` reads `assets/events/*.json` **sorted by filename** and treats
+  `getEventResults()` reads `data/events/*.json` **sorted by filename** and treats
   array order as round order. The existing subsession IDs sort into correct round order;
   if a future season's IDs aren't monotonic, switch to a zero-padded round prefix in the
   filename (e.g. `01-eventresult-<id>.json`). See [§7](#7-round-ordering).
+
+### 4a. Runtime data directory & startup sync
+
+Event results are **fetched at runtime, not committed**. They live in `data/events/`
+(separate from `assets/`, which holds static inputs like `config.json`, `drivers.json`,
+`template.html`). The path is `EVENTS_DIR`, env-overridable, and **shared by `iracing.js`
+(writer) and `build.js` (reader)** — keep the two in sync.
+
+- **Gitignored:** `data/events/*.json`. A tracked `data/events/.gitkeep` ships the empty
+  directory so a fresh clone has it.
+- **Directories self-create** (safe for a fresh VPS deploy): `syncSeason()` does
+  `mkdirSync(EVENTS_DIR, { recursive: true })` before writing; `getEventResults()`
+  creates `EVENTS_DIR` and returns `[]` if it's missing; `build.js` creates
+  `public/standings/<class>/` recursively. Nothing assumes a pre-existing tree.
+- **Initial sync on startup:** after `app.listen`, `runInitialSync()` does one
+  `syncSeason()` + `build()` so the app self-populates on boot. It's guarded — skips
+  cleanly (just logs) when not authenticated or when `leagueId`/`seasonId` aren't set,
+  and swallows errors (e.g. iRacing API down) so a failed sync never blocks startup. With
+  token persistence ([§4](#4-new-module-srciracingjs)), a restart re-syncs automatically
+  without a fresh browser login.
+
+> **Deploy note:** on the VPS you need `.env` (credentials, `PORT`, optionally
+> `EVENTS_DIR`) and a one-time browser auth to mint `.iracing-tokens.json` (or copy an
+> existing one across). After that, restarts re-sync on their own. `data/events/` and
+> `public/standings/` are created automatically.
 
 ---
 
@@ -673,8 +699,11 @@ Confirm the exact exported error class names against the installed package's typ
       sync-page badge + warning, friendly `503` handling. Verified: `401 → up` live; mapping
       and syntax checked
 - [x] **Live `POST /sync` verified end-to-end:** browser login at `/auth/iracing` →
-      `POST /sync` fetched all 11 subsessions, wrote `assets/events/eventresult-*.json`,
+      `POST /sync` fetched all 11 subsessions, wrote `data/events/eventresult-*.json`,
       and rebuilt standings (3 classes, 11 rounds, `rebuilt: true`)
+- [x] Move event results out of `assets/` to a gitignored runtime dir `data/events/`
+      (`EVENTS_DIR`, [§4a](#4a-runtime-data-directory--startup-sync)); run an initial
+      sync on startup (`runInitialSync`, guarded + non-fatal); dirs self-create for deploy
 
 > **Note on chronological ordering ([§7](#7-round-ordering)):** `syncSeason` sorts
 > sessions by `launchAt`, but files are written as `eventresult-<subsessionId>.json` and

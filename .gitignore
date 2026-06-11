@@ -7,3 +7,7 @@ public
 .env
 
 .iracing-tokens.json
+
+# Event results are fetched from iRacing at runtime (initial sync on startup +
+# POST /sync), not stored in the repo. Keep the directory via .gitkeep.
+data/events/*.json

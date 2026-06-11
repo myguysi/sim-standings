@@ -41,6 +41,9 @@
 
 const fs = require('fs');
 
+// Where synced event results are read from. Must match src/iracing.js's EVENTS_DIR.
+const EVENTS_DIR = process.env.EVENTS_DIR || 'data/events';
+
 const classConfigs = [
     { id: 'pro', name: 'Pro' },
     { id: 'inter', name: 'Inter' },
@@ -246,8 +249,13 @@ function groupByDriver(processedRaces) {
 // store.js
 
 function getEventResults() {
-    const files = fs.readdirSync(`assets/events`).filter(file => file.endsWith('.json')).sort();
-    const dataArr = files.map((file) => fs.readFileSync(`assets/events/${file}`, 'utf-8'));
+    // Runtime data dir; may not exist yet on a fresh deploy before the first sync.
+    if (!fs.existsSync(EVENTS_DIR)) {
+        fs.mkdirSync(EVENTS_DIR, { recursive: true });
+        return [];
+    }
+    const files = fs.readdirSync(EVENTS_DIR).filter(file => file.endsWith('.json')).sort();
+    const dataArr = files.map((file) => fs.readFileSync(`${EVENTS_DIR}/${file}`, 'utf-8'));
     return dataArr.map((d) => JSON.parse(d));
 }
 

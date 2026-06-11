@@ -21,7 +21,9 @@ const {
     exchangeAuthorizationCode,
 } = require('iracing-data-client');
 
-const EVENTS_DIR = 'assets/events';
+// Where synced event results are written. Runtime data (not committed) — defaults to
+// data/events, overridable with EVENTS_DIR. build.js reads from the same location.
+const EVENTS_DIR = process.env.EVENTS_DIR || 'data/events';
 
 // Base URL for the iRacing data API. /data/doc is an unauthenticated endpoint we
 // can cheaply probe to tell whether the data API is reachable (see checkDataApiStatus).
