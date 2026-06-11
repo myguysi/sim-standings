@@ -268,7 +268,6 @@ function renderSyncForm({ leagueName, leagueId, seasonId, authed, status }) {
         + 'You can still try, but the sync will likely fail until it recovers.</p>'
       : ''}
   <p class="meta">
-    League: <strong>${escapeHtml(leagueName)}</strong><br>
     leagueId: <strong>${escapeHtml(leagueId)}</strong> · seasonId: <strong>${escapeHtml(seasonId)}</strong><br>
     iRacing: <strong>${authed ? 'connected' : 'not connected'}</strong>
   </p>
