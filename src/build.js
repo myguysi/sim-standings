@@ -40,6 +40,14 @@
  */
 
 const fs = require('fs');
+const path = require('path');
+
+// Where synced event results are read from. Must match src/iracing.js's EVENTS_DIR.
+const EVENTS_DIR = process.env.EVENTS_DIR || 'data/events';
+
+// Which synced events to include in the standings. A map of subsessionId -> boolean,
+// written by POST /events. Runtime state alongside the event data (gitignored).
+const EVENTS_CONFIG_FILE = process.env.EVENTS_CONFIG_FILE || 'data/events-config.json';
 
 const classConfigs = [
     { id: 'pro', name: 'Pro' },
@@ -134,23 +142,23 @@ function buildStandings(driverStandings) {
 // transformers.js
 
 function parseResults(eventResult, classDrivers) {
-    const totalLaps = eventResult[0].laps_complete;
+    const totalLaps = eventResult[0].lapsComplete;
 
     // Map raw event results to ProcessedResult format
     const results = eventResult.map((r) => ({
-        driverId: r.cust_id,
-        driverName: r.display_name,
-        teamName: classDrivers.find((d) => d.id === r.cust_id)?.team ?? '--',
-        finishPositionOverall: r.finish_position,
+        driverId: r.custId,
+        driverName: r.displayName,
+        teamName: classDrivers.find((d) => d.id === r.custId)?.team ?? '--',
+        finishPositionOverall: r.finishPosition,
         finishPositionClass: null, // To be calculated later
-        startPositionOverall: r.starting_position,
+        startPositionOverall: r.startingPosition,
         startPositionClass: null, // To be calculated later
-        fastestLapTime: r.best_lap_time > 0 ? r.best_lap_time : Number.POSITIVE_INFINITY,
-        status: r.reason_out,
+        fastestLapTime: r.bestLapTime > 0 ? r.bestLapTime : Number.POSITIVE_INFINITY,
+        status: r.reasonOut,
         points: 0,
         pointsAllocations: [],
-        lapsComplete: r.laps_complete,
-        lapsCompletePercentage: Math.round(r.laps_complete / totalLaps * 100) / 100,
+        lapsComplete: r.lapsComplete,
+        lapsCompletePercentage: Math.round(r.lapsComplete / totalLaps * 100) / 100,
     }));
 
     // Calculate class start positions
@@ -195,13 +203,18 @@ function splitIntoClasses(allEventResults, driverRegistry) {
     const map = new Map();
 
     allEventResults.forEach((eventResult, eventIndex) => {
-        const raceSession = eventResult.data.session_results.find((sr) => sr.simsession_name === 'RACE');
+        // Identify the race by simsessionType 6 (iRacing's race type), not by
+        // simsessionName: leagues can rename the session (e.g. "FEATURE" not "RACE").
+        const raceSession = eventResult.sessionResults.find((sr) => sr.simsessionType === 6);
+        if (!raceSession) {
+            throw new Error(`No race session (simsessionType 6) in subsession ${eventResult.subsessionId}`);
+        }
         const results = raceSession.results;
 
         results.forEach((result) => {
-            const driver = driverRegistry.get(result.cust_id);
+            const driver = driverRegistry.get(result.custId);
             if (!driver) {
-                throw new Error(`No driver found for ${result.display_name} (${result.cust_id})`);
+                throw new Error(`No driver found for ${result.displayName} (${result.custId})`);
             }
             const existing = map.get(driver.class) ?? { classId: driver.class, eventResults: [] };
             const results = [...existing.eventResults];
@@ -240,10 +253,60 @@ function groupByDriver(processedRaces) {
 
 // store.js
 
+// Read every synced event file in chronological (filename ≈ subsessionId) order.
+function readEventFiles() {
+    // Runtime data dir; may not exist yet on a fresh deploy before the first sync.
+    if (!fs.existsSync(EVENTS_DIR)) {
+        fs.mkdirSync(EVENTS_DIR, { recursive: true });
+        return [];
+    }
+    const files = fs.readdirSync(EVENTS_DIR).filter(file => file.endsWith('.json')).sort();
+    return files.map((file) => JSON.parse(fs.readFileSync(`${EVENTS_DIR}/${file}`, 'utf-8')));
+}
+
+// Load the events-include config (subsessionId -> boolean). Missing/unreadable file
+// means "no events excluded" so the build still works before the form is ever saved.
+function loadEventsConfig() {
+    try {
+        return JSON.parse(fs.readFileSync(EVENTS_CONFIG_FILE, 'utf-8'));
+    } catch (err) {
+        if (err.code !== 'ENOENT') {
+            console.warn(`Could not read ${EVENTS_CONFIG_FILE}: ${err.message}`);
+        }
+        return {};
+    }
+}
+
+// Persist the events-include config. Creates the data dir if needed.
+function saveEventsConfig(eventsConfig) {
+    const dir = path.dirname(EVENTS_CONFIG_FILE);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(EVENTS_CONFIG_FILE, JSON.stringify(eventsConfig, null, 2));
+}
+
+// Synced events with display metadata and their current include state, for the
+// /events form. Includes excluded events too (so they can be re-enabled).
+function listEvents() {
+    const eventsConfig = loadEventsConfig();
+    return readEventFiles().map((event) => ({
+        subsessionId: event.subsessionId,
+        startTime: event.startTime ?? null,
+        trackName: event.track?.trackName ?? null,
+        seasonName: event.leagueSeasonName ?? event.seasonName ?? null,
+        // Include by default: only an explicit false excludes an event, so events
+        // synced after the form was last saved still flow into the standings.
+        included: eventsConfig[event.subsessionId] !== false,
+    }));
+}
+
 function getEventResults() {
-    const files = fs.readdirSync(`assets/events`).filter(file => file.endsWith('.json')).sort();
-    const dataArr = files.map((file) => fs.readFileSync(`assets/events/${file}`, 'utf-8'));
-    return dataArr.map((d) => JSON.parse(d));
+    const eventsConfig = loadEventsConfig();
+    // Drop only events explicitly set to false. Filtering here (before the pipeline
+    // assigns round indices) means the remaining events re-index as rounds 1..N, so
+    // the final-3 multiplier and drop-round rules count from the included events only.
+    return readEventFiles().filter((event) => eventsConfig[event.subsessionId] !== false);
 }
 
 function getDrivers() {
@@ -357,7 +420,21 @@ function renderStandings(classStanding) {
 
 // app.js
 
-const classStandings = processSeasonToDate();
-classStandings.forEach(renderStandings);
+/**
+ * Run the full pipeline: process the season's event results into standings and
+ * render an HTML page per class. Returns the computed class standings.
+ */
+function build() {
+    const classStandings = processSeasonToDate();
+    classStandings.forEach(renderStandings);
+    return classStandings;
+}
 
-console.log('Build complete!');
+// Run automatically when invoked directly (`node src/build.js` / `npm run build`),
+// but not when imported by the server, which calls build() itself after a sync.
+if (require.main === module) {
+    build();
+    console.log('Build complete!');
+}
+
+module.exports = { build, listEvents, saveEventsConfig };

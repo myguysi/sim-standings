@@ -1,5 +1,7 @@
 {
     "leagueName": "Example League",
+    "leagueId": 11991,
+    "seasonId": 131761,
     "formats": [
         {
             "id": "sprint",
