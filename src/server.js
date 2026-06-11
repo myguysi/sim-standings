@@ -8,7 +8,7 @@ const {
     isAuthenticated,
 } = require('./iracing');
 const { getStatus, startPolling } = require('./status');
-const { build } = require('./build');
+const { build, listEvents, saveEventsConfig } = require('./build');
 const config = require('../assets/config.json');
 
 const app = express();
@@ -133,6 +133,44 @@ app.post('/sync', async (req, res) => {
     }
 });
 
+// GET /events — render the form of synced events with a checkbox each, so the user
+// can deselect events (e.g. a media day) that shouldn't count towards the standings.
+app.get('/events', (req, res) => {
+    res.send(renderEventsForm(listEvents()));
+});
+
+// POST /events — persist the include/exclude choices, then rebuild the standings.
+// Unchecked checkboxes aren't submitted, so we re-list every synced event and record
+// an explicit boolean for each based on whether its id is in the submitted set.
+app.post('/events', (req, res) => {
+    const respond = (status, payload) => {
+        res.status(status).format({
+            json: () => res.json(payload),
+            html: () => res.send(renderEventsResult(payload)),
+            default: () => res.json(payload),
+        });
+    };
+
+    try {
+        const raw = req.body.included;
+        const includedIds = (Array.isArray(raw) ? raw : raw != null ? [raw] : []).map(String);
+
+        const events = listEvents();
+        const eventsConfig = {};
+        events.forEach((e) => {
+            eventsConfig[e.subsessionId] = includedIds.includes(String(e.subsessionId));
+        });
+        saveEventsConfig(eventsConfig);
+
+        // Regenerate standings from the now-filtered set of events.
+        build();
+        respond(200, { ok: true, rebuilt: true, included: includedIds.length, total: events.length });
+    } catch (err) {
+        console.error('Saving events config failed:', err);
+        respond(500, { ok: false, error: err.message });
+    }
+});
+
 app.listen(port, () => {
     console.log(`App listening on port ${port}`);
     // Begin polling iRacing data API availability in the background.
@@ -242,7 +280,46 @@ function renderSyncForm({ leagueName, leagueId, seasonId, authed, status }) {
       : '<p><a href="/auth/iracing">Connect iRacing account</a> to enable syncing.</p>'}
   <form method="POST" action="/sync">
     <button type="submit" ${ready ? '' : 'disabled'}>Sync this season</button>
-  </form>`);
+  </form>
+  <p><a href="/events">Choose which events count towards the standings &rarr;</a></p>`);
+}
+
+// GET /events form: one checkbox per synced event (checked = counts towards standings).
+function renderEventsForm(events) {
+    if (!events.length) {
+        return page('Select Events', `
+  <h1>Select Events</h1>
+  <p class="meta">No events have been synced yet.</p>
+  <p><a href="/sync">&larr; Sync this season</a> first, then come back to choose which count.</p>`);
+    }
+    const rows = events.map((e) => {
+        const date = e.startTime ? new Date(e.startTime).toLocaleString() : '—';
+        return `
+    <label style="display:block; margin:.5rem 0;">
+      <input type="checkbox" name="included" value="${escapeHtml(e.subsessionId)}" ${e.included ? 'checked' : ''}>
+      <strong>${escapeHtml(e.trackName ?? 'Unknown track')}</strong> — ${escapeHtml(date)}
+      <span class="meta">(#${escapeHtml(e.subsessionId)})</span>
+    </label>`;
+    }).join('');
+    return page('Select Events', `
+  <h1>Select Events</h1>
+  <p class="meta">Deselect any events that shouldn't count towards the standings (e.g. a media day), then save to rebuild.</p>
+  <form method="POST" action="/events">
+    ${rows}
+    <p><button type="submit">Save &amp; rebuild standings</button></p>
+  </form>
+  <p><a href="/sync">&larr; Sync</a></p>`);
+}
+
+// POST /events response for browser submissions.
+function renderEventsResult(payload) {
+    const heading = payload.ok ? 'Standings rebuilt' : 'Could not save';
+    return page(heading, `
+  <h1>${heading}</h1>
+  ${payload.ok
+      ? `<p>${escapeHtml(payload.included)} of ${escapeHtml(payload.total)} event(s) included. Standings rebuilt.</p>`
+      : `<p class="error">${escapeHtml(payload.error)}</p>`}
+  <p><a href="/events">&larr; Back to events</a></p>`);
 }
 
 // Standalone status page (GET /status with Accept: text/html).

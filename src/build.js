@@ -40,9 +40,14 @@
  */
 
 const fs = require('fs');
+const path = require('path');
 
 // Where synced event results are read from. Must match src/iracing.js's EVENTS_DIR.
 const EVENTS_DIR = process.env.EVENTS_DIR || 'data/events';
+
+// Which synced events to include in the standings. A map of subsessionId -> boolean,
+// written by POST /events. Runtime state alongside the event data (gitignored).
+const EVENTS_CONFIG_FILE = process.env.EVENTS_CONFIG_FILE || 'data/events-config.json';
 
 const classConfigs = [
     { id: 'pro', name: 'Pro' },
@@ -248,15 +253,60 @@ function groupByDriver(processedRaces) {
 
 // store.js
 
-function getEventResults() {
+// Read every synced event file in chronological (filename ≈ subsessionId) order.
+function readEventFiles() {
     // Runtime data dir; may not exist yet on a fresh deploy before the first sync.
     if (!fs.existsSync(EVENTS_DIR)) {
         fs.mkdirSync(EVENTS_DIR, { recursive: true });
         return [];
     }
     const files = fs.readdirSync(EVENTS_DIR).filter(file => file.endsWith('.json')).sort();
-    const dataArr = files.map((file) => fs.readFileSync(`${EVENTS_DIR}/${file}`, 'utf-8'));
-    return dataArr.map((d) => JSON.parse(d));
+    return files.map((file) => JSON.parse(fs.readFileSync(`${EVENTS_DIR}/${file}`, 'utf-8')));
+}
+
+// Load the events-include config (subsessionId -> boolean). Missing/unreadable file
+// means "no events excluded" so the build still works before the form is ever saved.
+function loadEventsConfig() {
+    try {
+        return JSON.parse(fs.readFileSync(EVENTS_CONFIG_FILE, 'utf-8'));
+    } catch (err) {
+        if (err.code !== 'ENOENT') {
+            console.warn(`Could not read ${EVENTS_CONFIG_FILE}: ${err.message}`);
+        }
+        return {};
+    }
+}
+
+// Persist the events-include config. Creates the data dir if needed.
+function saveEventsConfig(eventsConfig) {
+    const dir = path.dirname(EVENTS_CONFIG_FILE);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(EVENTS_CONFIG_FILE, JSON.stringify(eventsConfig, null, 2));
+}
+
+// Synced events with display metadata and their current include state, for the
+// /events form. Includes excluded events too (so they can be re-enabled).
+function listEvents() {
+    const eventsConfig = loadEventsConfig();
+    return readEventFiles().map((event) => ({
+        subsessionId: event.subsessionId,
+        startTime: event.startTime ?? null,
+        trackName: event.track?.trackName ?? null,
+        seasonName: event.leagueSeasonName ?? event.seasonName ?? null,
+        // Include by default: only an explicit false excludes an event, so events
+        // synced after the form was last saved still flow into the standings.
+        included: eventsConfig[event.subsessionId] !== false,
+    }));
+}
+
+function getEventResults() {
+    const eventsConfig = loadEventsConfig();
+    // Drop only events explicitly set to false. Filtering here (before the pipeline
+    // assigns round indices) means the remaining events re-index as rounds 1..N, so
+    // the final-3 multiplier and drop-round rules count from the included events only.
+    return readEventFiles().filter((event) => eventsConfig[event.subsessionId] !== false);
 }
 
 function getDrivers() {
@@ -387,4 +437,4 @@ if (require.main === module) {
     console.log('Build complete!');
 }
 
-module.exports = { build };
+module.exports = { build, listEvents, saveEventsConfig };
