@@ -195,7 +195,12 @@ function splitIntoClasses(allEventResults, driverRegistry) {
     const map = new Map();
 
     allEventResults.forEach((eventResult, eventIndex) => {
-        const raceSession = eventResult.sessionResults.find((sr) => sr.simsessionName === 'RACE');
+        // Identify the race by simsessionType 6 (iRacing's race type), not by
+        // simsessionName: leagues can rename the session (e.g. "FEATURE" not "RACE").
+        const raceSession = eventResult.sessionResults.find((sr) => sr.simsessionType === 6);
+        if (!raceSession) {
+            throw new Error(`No race session (simsessionType 6) in subsession ${eventResult.subsessionId}`);
+        }
         const results = raceSession.results;
 
         results.forEach((result) => {

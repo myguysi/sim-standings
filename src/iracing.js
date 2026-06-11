@@ -9,8 +9,9 @@
  *      the registered redirect URI    code for tokens
  *   3. POST /sync                 -> syncSeason() uses the stored tokens
  *
- * Tokens are held in memory only (single-user local backend): a server restart
- * requires re-authorising. onTokenRefresh keeps the in-memory copy current.
+ * Tokens are persisted to a gitignored file (single-user local backend) so a server
+ * restart doesn't require re-authorising. onTokenRefresh keeps both the in-memory
+ * copy and the file current.
  */
 
 const fs = require('fs');
@@ -39,22 +40,50 @@ function redirectUri() {
     return process.env.IRACING_REDIRECT_URI || 'http://127.0.0.1:3000/auth/iracing/callback';
 }
 
-// In-memory state (not persisted).
-let tokens = null; // { accessToken, refreshToken, expiresAt }
+// Where to persist tokens between restarts. Holds access + refresh tokens, so it's
+// gitignored like .env. Override the path with IRACING_TOKENS_FILE if needed.
+const TOKENS_FILE = process.env.IRACING_TOKENS_FILE || '.iracing-tokens.json';
+
+// Restore any persisted tokens on startup; pendingAuth is transient (in-memory only).
+let tokens = loadTokens(); // { accessToken, refreshToken, expiresAt } | null
 let pendingAuth = null; // { state, verifier } between redirect and callback
 
 function isAuthenticated() {
     return Boolean(tokens && tokens.accessToken);
 }
 
-// Normalise an SDK TokenResponse (snake_case) into the client's token shape.
-// Preserve the existing refresh token if a rotation response omits it.
+// Read persisted tokens from disk. Returns null if absent/unreadable, so the app
+// simply starts unauthenticated rather than crashing.
+function loadTokens() {
+    try {
+        const parsed = JSON.parse(fs.readFileSync(TOKENS_FILE, 'utf-8'));
+        return parsed && parsed.accessToken ? parsed : null;
+    } catch (err) {
+        if (err.code !== 'ENOENT') {
+            console.warn(`Could not read ${TOKENS_FILE}: ${err.message}`);
+        }
+        return null;
+    }
+}
+
+// Write the current tokens to disk so they survive a restart.
+function persistTokens() {
+    try {
+        fs.writeFileSync(TOKENS_FILE, JSON.stringify(tokens, null, 2));
+    } catch (err) {
+        console.error(`Failed to persist tokens to ${TOKENS_FILE}: ${err.message}`);
+    }
+}
+
+// Normalise an SDK TokenResponse (snake_case) into the client's token shape and
+// persist it. Preserve the existing refresh token if a rotation response omits it.
 function storeTokens(token) {
     tokens = {
         accessToken: token.access_token,
         refreshToken: token.refresh_token ?? tokens?.refreshToken,
         expiresAt: Math.floor(Date.now() / 1000) + token.expires_in,
     };
+    persistTokens();
 }
 
 /** Build the iRacing authorization URL and remember the PKCE verifier + state. */
@@ -96,6 +125,12 @@ function createClient() {
             tokens,
             onTokenRefresh: (token) => storeTokens(token),
         },
+        // Skip the SDK's Zod response validation. Its bundled schemas are stricter
+        // than the real API: league results carry null for allowedLicenses,
+        // seriesLogo, and per-row divisionName, which the schemas reject. The
+        // camelCase transform happens in the HTTP layer (before validation), so we
+        // still get camelCased, envelope-stripped data — just unvalidated.
+        validateParams: false,
     });
 }
 

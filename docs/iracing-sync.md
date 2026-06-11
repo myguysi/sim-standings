@@ -81,13 +81,16 @@ The **redirect URI must exactly match** one registered with iRacing. The local U
 port `3000`), which is why the server defaults to port 3000.
 
 Add `.env` to `.gitignore` (current `.gitignore` ignores `.DS_Store`, `node_modules`,
-`public` — append `.env`):
+`public` — append `.env`). Also ignore `.iracing-tokens.json`, where OAuth tokens are
+persisted between restarts ([§4](#4-new-module-srciracingjs)) — it holds access + refresh
+tokens, so it's as sensitive as `.env`:
 
 ```gitignore
 .DS_Store
 node_modules
 public
 .env
+.iracing-tokens.json
 ```
 
 Load it once at process start (top of `src/server.js`, before anything reads
@@ -115,9 +118,13 @@ use them):
 - `syncSeason({ leagueId, seasonId })` — builds an `authorization-code` client from the
   stored tokens (throws if unauthenticated) and fetches/saves the season.
 
-**Token storage is in-memory only** (single-user local backend): a server restart
-requires re-authorising. `onTokenRefresh` keeps the in-memory copy current as the SDK
-refreshes the access token.
+**Token storage is persisted to a gitignored file** (single-user local backend) so a
+server restart doesn't require re-authorising. `loadTokens()` restores them on startup
+(starting unauthenticated if the file is absent/corrupt); `storeTokens()` writes to disk
+on the initial exchange and on every `onTokenRefresh`, keeping the in-memory copy and the
+file in lock-step. The path defaults to `.iracing-tokens.json`, overridable with
+`IRACING_TOKENS_FILE`. The file holds access + refresh tokens, so it's gitignored like
+`.env`.
 
 ```js
 // src/iracing.js (abridged — see the file for the full version)
@@ -181,9 +188,17 @@ function createClient() {
             tokens,
             onTokenRefresh: (token) => storeTokens(token),
         },
+        validateParams: false, // see note below
     });
 }
 ```
+
+> **`validateParams: false`.** The SDK validates every response against bundled Zod
+> schemas that are stricter than the real API: live league results carry `null` for
+> `allowedLicenses`, `seriesLogo`, and per-row `divisionName`, which the schemas reject
+> (throwing a large `ZodError` before returning the data). This flag skips that response
+> `.parse()`. The camelCase transform and `{ type, data }` envelope strip happen in the
+> HTTP layer *before* validation, so we still get clean camelCased data — just unvalidated.
 
 `syncSeason` itself is flow-agnostic — it just uses `createClient()`:
 
@@ -235,9 +250,15 @@ accesses in `src/build.js`. These are the **only** places that read raw iRacing 
 | Current (snake_case + envelope)            | New (camelCase, no envelope)       |
 | ------------------------------------------ | ---------------------------------- |
 | `eventResult.data.session_results`         | `eventResult.sessionResults`       |
-| `sr.simsession_name === 'RACE'`            | `sr.simsessionName === 'RACE'`     |
+| `sr.simsession_name === 'RACE'`            | `sr.simsessionType === 6` †        |
 | `result.cust_id`                           | `result.custId`                    |
 | `result.display_name`                      | `result.displayName`               |
+
+† **Match the race by `simsessionType` (6), not `simsessionName`.** Leagues can rename
+the race session — one round in the live data was named `"FEATURE"` rather than `"RACE"`,
+which made a `simsessionName === 'RACE'` lookup return `undefined` and crash on `.results`.
+`simsessionType === 6` is iRacing's canonical race type and matched every round. The code
+also throws a clear error if no race session is found, instead of a cryptic undefined read.
 
 ### 5b. `parseResults()`
 
@@ -626,11 +647,13 @@ Confirm the exact exported error class names against the installed package's typ
       regenerated value)*
 - [x] Set `leagueId` + `seasonId` in `assets/config.json` *(11991 / 131761)*
 - [x] Create `src/iracing.js` — Authorization Code helpers (`getAuthorizationUrl`,
-      `handleCallback`, `isAuthenticated`) + `syncSeason`. In-memory tokens,
-      `onTokenRefresh` keeps them current. **Verify against a live response:** split
-      handling and that `subsessionId`/`launchAt` are the right field names (untyped).
+      `handleCallback`, `isAuthenticated`) + `syncSeason`. Tokens persisted to a gitignored
+      `.iracing-tokens.json` (`IRACING_TOKENS_FILE`); `onTokenRefresh` keeps memory + file
+      current. `validateParams: false` to bypass the SDK's over-strict response schemas.
+      Verified against live data: `subsessionId`/`launchAt` field names and split handling.
 - [x] Update the camelCase field accesses in `src/build.js`
-      ([§5a](#5a-splitintoclasses) / [§5b](#5b-parseresults))
+      ([§5a](#5a-splitintoclasses) / [§5b](#5b-parseresults)); match the race session by
+      `simsessionType === 6`, not `simsessionName` (a live round was named `"FEATURE"`)
 - [x] Convert the 8 legacy snake_case event files — `src/migrate-events.js` (deep
       camelCase + envelope unwrap), already run. Idempotent / safe to re-run.
 - [x] Add OAuth routes `GET /auth/iracing` + `GET /auth/iracing/callback` to `src/server.js`
@@ -649,14 +672,15 @@ Confirm the exact exported error class names against the installed package's typ
       probe, `src/status.js` background poller (2 min, `IRACING_STATUS_POLL_MS`), `GET /status`,
       sync-page badge + warning, friendly `503` handling. Verified: `401 → up` live; mapping
       and syntax checked
-- [ ] **Live `POST /sync`:** complete the browser login at `/auth/iracing`, then `POST /sync`
-      and confirm files land in `assets/events/` *(data API recovered; pending a real run)*
+- [x] **Live `POST /sync` verified end-to-end:** browser login at `/auth/iracing` →
+      `POST /sync` fetched all 11 subsessions, wrote `assets/events/eventresult-*.json`,
+      and rebuilt standings (3 classes, 11 rounds, `rebuilt: true`)
 
 > **Note on chronological ordering ([§7](#7-round-ordering)):** `syncSeason` sorts
 > sessions by `launchAt`, but files are written as `eventresult-<subsessionId>.json` and
-> `build.js` orders rounds by *filename*. The existing 8 subsession IDs sort into correct
-> round order, so this matches today's behaviour. If a future season's IDs aren't
-> monotonic, switch to a zero-padded round prefix in the filename.
+> `build.js` orders rounds by *filename*. The live season's 11 subsession IDs sort into
+> correct round order, so filename ordering matches chronological order today. If a future
+> season's IDs aren't monotonic, switch to a zero-padded round prefix in the filename.
 
 ---
 
