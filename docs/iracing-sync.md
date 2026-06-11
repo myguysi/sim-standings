@@ -553,7 +553,48 @@ catch reports the error. The standalone `npm run build` step still works unchang
 
 ---
 
-## 9. Error handling reference
+## 9. Service status monitoring
+
+iRacing's data API goes down for maintenance and the occasional unplanned outage. When
+it does, every `/data/*` endpoint returns a CloudFront/ELB **503** (a raw HTML page, not
+iRacing's `{"error":"Site Maintenance"}` JSON), so a sync fails. To surface this *before*
+a user attempts an action, a background poller tracks availability.
+
+**Probe — `checkDataApiStatus()` in `src/iracing.js`:** an unauthenticated
+`GET https://members-ng.iracing.com/data/doc` (with a 5s timeout). `/data/doc` lists the
+API and needs no tokens, so:
+
+- `200` → `up`
+- `401` (needs auth, backend alive) → `up`
+- `503` / other non-2xx → `down`
+- network error / timeout → `unreachable`
+
+Returns `{ status, httpStatus, checkedAt }`.
+
+**Poller — `src/status.js`:** probes once on startup, then every `IRACING_STATUS_POLL_MS`
+(default `120000` = 2 min), caching the latest result in memory. `getStatus()` returns it
+with no latency. `startPolling()` uses `setInterval(...).unref()` so the timer never holds
+the process open. `onStatusChange(previous, next)` is the single chokepoint for transitions
+— wire alerting (email/webhook) in there later without touching the rest of the app.
+
+**Surfaced in `src/server.js`:**
+
+- `GET /status` — content-negotiated JSON/HTML of the cached status (safe for monitoring).
+- `GET /sync` — a status badge; when `down`/`unreachable`, a warning banner linking to
+  status.iracing.com. The Sync button stays enabled (warn-but-attempt: the cached status
+  can be up to one poll interval stale).
+- `POST /sync` — on a `503` from the SDK, returns a friendly message (distinguishing
+  `isMaintenanceMode`) pointing at the status page rather than the bare "Service unavailable".
+
+```js
+const { startPolling, getStatus } = require('./status');
+app.listen(port, () => { startPolling(); });        // begin background polling
+app.get('/status', (req, res) => res.json(getStatus()));
+```
+
+---
+
+## 10. Error handling reference
 
 The SDK exposes typed errors you can branch on for better responses:
 
@@ -577,7 +618,7 @@ Confirm the exact exported error class names against the installed package's typ
 
 ---
 
-## 10. Implementation checklist
+## 11. Implementation checklist
 
 - [x] `npm install iracing-data-client dotenv`
 - [x] Create `.env` (`IRACING_CLIENT_ID`, `IRACING_CLIENT_SECRET`, `IRACING_REDIRECT_URI`,
@@ -604,8 +645,12 @@ Confirm the exact exported error class names against the installed package's typ
 - [x] Tested offline: build passes on migrated data; `/sync` form + 401 guard + JSON/HTML
       negotiation verified; `GET /auth/iracing` redirects to iRacing with the correct
       `client_id`, redirect URI, `state`, and PKCE challenge
-- [ ] **Pending client secret:** once it arrives, complete the browser login at
-      `/auth/iracing`, then `POST /sync` and confirm files land in `assets/events/`
+- [x] Service status monitoring ([§9](#9-service-status-monitoring)): `checkDataApiStatus()`
+      probe, `src/status.js` background poller (2 min, `IRACING_STATUS_POLL_MS`), `GET /status`,
+      sync-page badge + warning, friendly `503` handling. Verified: `401 → up` live; mapping
+      and syntax checked
+- [ ] **Live `POST /sync`:** complete the browser login at `/auth/iracing`, then `POST /sync`
+      and confirm files land in `assets/events/` *(data API recovered; pending a real run)*
 
 > **Note on chronological ordering ([§7](#7-round-ordering)):** `syncSeason` sorts
 > sessions by `launchAt`, but files are written as `eventresult-<subsessionId>.json` and
@@ -615,7 +660,7 @@ Confirm the exact exported error class names against the installed package's typ
 
 ---
 
-## 11. Quick API recap
+## 12. Quick API recap
 
 | Call | Purpose | Key params |
 | --- | --- | --- |

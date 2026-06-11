@@ -7,6 +7,7 @@ const {
     handleCallback,
     isAuthenticated,
 } = require('./iracing');
+const { getStatus, startPolling } = require('./status');
 const { build } = require('./build');
 const config = require('../assets/config.json');
 
@@ -50,10 +51,27 @@ app.get('/auth/iracing/callback', async (req, res) => {
     }
 });
 
+// GET /status — current iRacing data API availability (cached by the poller).
+// Content-negotiated so monitoring can poll JSON while browsers get a small page.
+app.get('/status', (req, res) => {
+    const status = getStatus();
+    res.format({
+        json: () => res.json(status),
+        html: () => res.send(renderStatusPage(status)),
+        default: () => res.json(status),
+    });
+});
+
 // GET /sync — render the HTML form that POSTs to /sync.
 app.get('/sync', (req, res) => {
     const { leagueName, leagueId, seasonId } = config;
-    res.send(renderSyncForm({ leagueName, leagueId, seasonId, authed: isAuthenticated() }));
+    res.send(renderSyncForm({
+        leagueName,
+        leagueId,
+        seasonId,
+        authed: isAuthenticated(),
+        status: getStatus(),
+    }));
 });
 
 // POST /sync — fetch the season's results from iRacing and write them to disk.
@@ -100,12 +118,25 @@ app.post('/sync', async (req, res) => {
             url: err.url,
             responseData: err.responseData,
         });
+        // A 503 means iRacing's data API is unavailable (maintenance/outage), not a
+        // bug in the request — point the user at the status page.
+        if (err.status === 503) {
+            const reason = err.isMaintenanceMode
+                ? 'iRacing is in scheduled maintenance'
+                : 'iRacing data API is temporarily unavailable';
+            return respond(503, {
+                ok: false,
+                error: `${reason} (503). Check https://status.iracing.com and try again shortly.`,
+            });
+        }
         respond(502, { ok: false, error: err.message });
     }
 });
 
 app.listen(port, () => {
     console.log(`App listening on port ${port}`);
+    // Begin polling iRacing data API availability in the background.
+    startPolling();
 });
 
 
@@ -133,17 +164,45 @@ function page(title, body) {
     pre { background: #f4f4f4; padding: 1rem; border-radius: .4rem; overflow: auto; white-space: pre-wrap; }
     .meta { color: #555; }
     .error { color: #b00; }
+    .badge { display: inline-block; padding: .15rem .6rem; border-radius: 1rem; font-size: .85rem; font-weight: 600; }
+    .badge--up { background: #e3f5e3; color: #137333; }
+    .badge--down, .badge--unreachable { background: #fce8e6; color: #b00; }
+    .badge--unknown { background: #eee; color: #555; }
+    .warn { background: #fff4e5; border: 1px solid #ffcf8b; color: #8a5300; padding: .6rem 1rem; border-radius: .4rem; }
   </style>
 </head>
 <body>${body}</body>
 </html>`;
 }
 
-function renderSyncForm({ leagueName, leagueId, seasonId, authed }) {
+// Human-readable label + CSS modifier for each status value.
+const STATUS_LABELS = {
+    up: 'operational',
+    down: 'unavailable',
+    unreachable: 'unreachable',
+    unknown: 'checking…',
+};
+
+function statusBadge(status) {
+    const state = status?.status ?? 'unknown';
+    const label = STATUS_LABELS[state] ?? state;
+    return `<span class="badge badge--${escapeHtml(state)}">iRacing data API: ${escapeHtml(label)}</span>`;
+}
+
+function renderSyncForm({ leagueName, leagueId, seasonId, authed, status }) {
     const configured = leagueId && seasonId;
+    // Per design: warn but still attempt. The button stays enabled regardless of
+    // API status (the cached status can be up to one poll interval stale).
     const ready = configured && authed;
+    const apiDown = status && (status.status === 'down' || status.status === 'unreachable');
     return page('Sync Results', `
   <h1>Sync Results</h1>
+  <p>${statusBadge(status)}</p>
+  ${apiDown
+      ? '<p class="warn">The iRacing data API looks unavailable right now '
+        + '(<a href="https://status.iracing.com">status.iracing.com</a>). '
+        + 'You can still try, but the sync will likely fail until it recovers.</p>'
+      : ''}
   <p class="meta">
     League: <strong>${escapeHtml(leagueName)}</strong><br>
     leagueId: <strong>${escapeHtml(leagueId)}</strong> · seasonId: <strong>${escapeHtml(seasonId)}</strong><br>
@@ -158,6 +217,19 @@ function renderSyncForm({ leagueName, leagueId, seasonId, authed }) {
   <form method="POST" action="/sync">
     <button type="submit" ${ready ? '' : 'disabled'}>Sync this season</button>
   </form>`);
+}
+
+// Standalone status page (GET /status with Accept: text/html).
+function renderStatusPage(status) {
+    const checkedAt = status?.checkedAt ? new Date(status.checkedAt).toLocaleString() : 'not yet checked';
+    return page('iRacing Status', `
+  <h1>iRacing Status</h1>
+  <p>${statusBadge(status)}</p>
+  <p class="meta">
+    HTTP: <strong>${escapeHtml(status?.httpStatus ?? '—')}</strong><br>
+    Last checked: <strong>${escapeHtml(checkedAt)}</strong>
+  </p>
+  <p><a href="https://status.iracing.com">iRacing status page</a> · <a href="/sync">&larr; Sync</a></p>`);
 }
 
 // Rendered as the POST response for browser (Accept: text/html) submissions.

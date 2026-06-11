@@ -22,6 +22,13 @@ const {
 
 const EVENTS_DIR = 'assets/events';
 
+// Base URL for the iRacing data API. /data/doc is an unauthenticated endpoint we
+// can cheaply probe to tell whether the data API is reachable (see checkDataApiStatus).
+const DATA_API_BASE_URL = 'https://members-ng.iracing.com';
+
+// How long to wait on the status probe before treating the API as unreachable.
+const STATUS_PROBE_TIMEOUT_MS = 5000;
+
 // 'iracing.auth' is the scope iRacing requires for data-server access (it's the
 // SDK's own IRACING_AUTH_SCOPE constant). 'openid' is rejected as a disallowed
 // scope. Override via IRACING_SCOPE only if iRacing's /authorize docs change.
@@ -141,4 +148,35 @@ async function syncSeason({ leagueId, seasonId }) {
     };
 }
 
-module.exports = { syncSeason, getAuthorizationUrl, handleCallback, isAuthenticated };
+/**
+ * Probe the iRacing data API to determine whether it's available right now.
+ * Unauthenticated: /data/doc lists the API and is reachable without tokens, so a
+ * 200 (or 401 "needs auth") means the backend is alive; a 503 is the CloudFront/ELB
+ * "Service Temporarily Unavailable" we see during iRacing maintenance/outages.
+ *
+ * Returns { status: 'up' | 'down' | 'unreachable', httpStatus, checkedAt }.
+ */
+async function checkDataApiStatus() {
+    const checkedAt = new Date().toISOString();
+    try {
+        const res = await fetch(`${DATA_API_BASE_URL}/data/doc`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(STATUS_PROBE_TIMEOUT_MS),
+        });
+        // 200 = up; 401 = backend alive but unauthenticated (still "up" for our purposes).
+        // 503 (and any other non-2xx/401) means the data API isn't serving requests.
+        const status = res.ok || res.status === 401 ? 'up' : 'down';
+        return { status, httpStatus: res.status, checkedAt };
+    } catch (err) {
+        // Network error, DNS failure, or the probe timed out.
+        return { status: 'unreachable', httpStatus: null, checkedAt, error: err.message };
+    }
+}
+
+module.exports = {
+    syncSeason,
+    getAuthorizationUrl,
+    handleCallback,
+    isAuthenticated,
+    checkDataApiStatus,
+};
