@@ -22,9 +22,10 @@ const {
 
 const EVENTS_DIR = 'assets/events';
 
-// iRacing may require a specific scope for data-server access; 'openid' matches the
-// SDK docs. Override via IRACING_SCOPE if the /authorize docs call for something else.
-const SCOPE = process.env.IRACING_SCOPE || 'openid';
+// 'iracing.auth' is the scope iRacing requires for data-server access (it's the
+// SDK's own IRACING_AUTH_SCOPE constant). 'openid' is rejected as a disallowed
+// scope. Override via IRACING_SCOPE only if iRacing's /authorize docs change.
+const SCOPE = process.env.IRACING_SCOPE || 'iracing.auth';
 
 function redirectUri() {
     // Must exactly match a redirect URI registered with the client.

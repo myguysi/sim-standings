@@ -127,7 +127,7 @@ const {
     exchangeAuthorizationCode,
 } = require('iracing-data-client');
 
-const SCOPE = process.env.IRACING_SCOPE || 'openid';
+const SCOPE = process.env.IRACING_SCOPE || 'iracing.auth';
 const redirectUri = () =>
     process.env.IRACING_REDIRECT_URI || 'http://127.0.0.1:3000/auth/iracing/callback';
 

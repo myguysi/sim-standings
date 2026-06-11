@@ -92,8 +92,14 @@ app.post('/sync', async (req, res) => {
         respond(200, { ok: true, rebuilt: true, ...summary });
     } catch (err) {
         // The SDK throws typed errors (OAuthError, IRacingError with isUnauthorized,
-        // rate-limit and maintenance-mode). Surface a useful status + message.
-        console.error('Sync failed:', err);
+        // rate-limit and maintenance-mode). Log the request URL + response body so a
+        // 503/4xx can be traced to a specific iRacing endpoint.
+        console.error('Sync failed:', {
+            message: err.message,
+            status: err.status,
+            url: err.url,
+            responseData: err.responseData,
+        });
         respond(502, { ok: false, error: err.message });
     }
 });
