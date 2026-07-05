@@ -202,6 +202,12 @@ function parseResults(eventResult, classDrivers) {
 function splitIntoClasses(allEventResults, driverRegistry) {
     const map = new Map();
 
+    // pre-populate the map with all known classes, so that even if a class has no results yet it still appears in the output
+    const allClasses = new Set(Array.from(driverRegistry.values()).map((d) => d.class));
+    allClasses.forEach((classId) => {
+        map.set(classId, { classId, eventResults: [] });
+    });
+
     allEventResults.forEach((eventResult, eventIndex) => {
         // Identify the race by simsessionType 6 (iRacing's race type), not by
         // simsessionName: leagues can rename the session (e.g. "FEATURE" not "RACE").
