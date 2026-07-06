@@ -55,6 +55,9 @@ const classConfigs = [
     { id: 'club', name: 'Club' },
 ];
 
+const DROP_ROUNDS_THRESHOLD = 7;
+const TOTAL_ROUNDS_COUNT = 10;
+
 // eventProcessor.js
 
 const pointsForPosition = [100, 90, 80, 72, 66, 60, 54, 48, 42, 36, 30, 26, 22, 18, 14, 10, 8, 6, 4, 2];
@@ -117,8 +120,13 @@ function calculateTotals(driverStandings) {
 }
 
 function applyDropRounds(driverStandings) {
+    // Only start dropping rounds after 3 rounds have been completed
+    if (driverStandings[0]?.results.length <= 3) {
+        return driverStandings;
+    }
+    // Drop the lowest-scoring round from the first 7 rounds (if there are at least 7 rounds)
     return driverStandings.map((standing) => {
-        const eligibleResults = standing.results.slice(0, 7); // Only drop from the first 7 rounds
+        const eligibleResults = standing.results.slice(0, DROP_ROUNDS_THRESHOLD);
         const sortedResults = eligibleResults.sort((a, b) => a.points - b.points);
         const droppedResults = sortedResults.slice(0, 1); // Drop the lowest-scoring round
         const droppedPoints = droppedResults.reduce((sum, result) => sum + result.points, 0);
@@ -370,6 +378,30 @@ function processSeasonToDate() {
     const classes = splitIntoClasses(allEventResults, driverRegistry);
     const classStandings = classes.map((classData) => processClass(classData, driverRegistry));
 
+    // Pad standings with future rounds (for the table to render correctly even if some rounds haven't happened yet)
+    classStandings.forEach(({ standings }) => {
+        standings.forEach((standing) => {
+            const roundsToAdd = TOTAL_ROUNDS_COUNT - standing.results.length;
+            for (let i = 0; i < roundsToAdd; i++) {
+                standing.results.push({
+                    driverId: standing.driverId,
+                    driverName: standing.driverName,
+                    teamName: standing.teamName,
+                    finishPositionOverall: null,
+                    finishPositionClass: null,
+                    startPositionOverall: null,
+                    startPositionClass: null,
+                    fastestLapTime: null,
+                    status: 'N/A',
+                    points: 0,
+                    pointsAllocations: [],
+                    lapsComplete: 0,
+                    lapsCompletePercentage: 0,
+                });
+            }
+        });
+    });
+
     // Save outputs
     classStandings.forEach(({ classId, standings }) => {
         saveStandings(classId, standings);
@@ -397,8 +429,8 @@ function renderStandings(classStanding) {
                 <td class="text-center">${index + 1}</td>
                 <td class="text-nowrap">${standing.driverName}</td>
                 <td class="text-nowrap">${standing.teamName}</td>
-                ${roundCells}
                 <td class="text-center">${standing.totalPoints}</td>
+                ${roundCells}
             </tr>
         `;
     }).join('');
