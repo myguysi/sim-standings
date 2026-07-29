@@ -275,7 +275,7 @@ function renderSyncForm({ leagueName, leagueId, seasonId, authed, status }) {
       ? ''
       : '<p class="error">Set <code>leagueId</code> and <code>seasonId</code> in <code>assets/config.json</code> first.</p>'}
   ${authed
-      ? ''
+      ? '<p><a href="/auth/iracing">Reconnect iRacing account</a></p>'
       : '<p><a href="/auth/iracing">Connect iRacing account</a> to enable syncing.</p>'}
   <form method="POST" action="/sync">
     <button type="submit" ${ready ? '' : 'disabled'}>Sync this season</button>
