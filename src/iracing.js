@@ -186,6 +186,22 @@ async function syncSeason({ leagueId, seasonId }) {
 }
 
 /**
+ * Look up iRacing drivers by name via /data/lookup/drivers. Used by
+ * scripts/generate-drivers.js to resolve the cust_id for each league driver,
+ * since the spreadsheet only carries names. Passing leagueId narrows the search
+ * to that league's members, which disambiguates common/duplicate names.
+ *
+ * Returns an array of { custId, displayName, ... } (possibly empty).
+ */
+async function lookupDrivers({ searchTerm, leagueId } = {}) {
+    const iracing = createClient();
+    return iracing.lookup.drivers({
+        searchTerm,
+        ...(leagueId ? { leagueId } : {}),
+    });
+}
+
+/**
  * Probe the iRacing data API to determine whether it's available right now.
  * Unauthenticated: /data/doc lists the API and is reachable without tokens, so a
  * 200 (or 401 "needs auth") means the backend is alive; a 503 is the CloudFront/ELB
@@ -212,6 +228,7 @@ async function checkDataApiStatus() {
 
 module.exports = {
     syncSeason,
+    lookupDrivers,
     getAuthorizationUrl,
     handleCallback,
     isAuthenticated,

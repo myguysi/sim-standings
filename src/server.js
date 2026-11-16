@@ -105,9 +105,11 @@ app.post('/sync', async (req, res) => {
 
     try {
         const summary = await syncSeason({ leagueId, seasonId });
-        // Regenerate standings from the freshly synced event files.
-        build();
-        respond(200, { ok: true, rebuilt: true, ...summary });
+        // Regenerate standings from the freshly synced event files. Drivers in the
+        // results but missing from the registry are skipped (not an error) and
+        // reported back so the result page can flag them.
+        const { skippedDrivers } = build();
+        respond(200, { ok: true, rebuilt: true, ...summary, skippedDrivers });
     } catch (err) {
         // The SDK throws typed errors (OAuthError, IRacingError with isUnauthorized,
         // rate-limit and maintenance-mode). Log the request URL + response body so a
@@ -337,9 +339,19 @@ function renderStatusPage(status) {
 // Rendered as the POST response for browser (Accept: text/html) submissions.
 function renderSyncResult(payload) {
     const heading = payload.ok ? 'Sync complete' : 'Sync failed';
+    // Pull skippedDrivers out of the raw dump so it isn't shown twice.
+    const { skippedDrivers = [], ...rest } = payload;
+    const skippedNotice = skippedDrivers.length
+        ? `<p class="warn">Skipped ${skippedDrivers.length} unregistered driver${
+              skippedDrivers.length === 1 ? '' : 's'
+          } (not in the driver list — results ignored): ${escapeHtml(
+              skippedDrivers.map((d) => `${d.displayName} (${d.custId})`).join(', '),
+          )}</p>`
+        : '';
     return page(heading, `
   <h1>${heading}</h1>
   ${payload.ok ? '' : `<p class="error">${escapeHtml(payload.error)}</p>`}
-  <pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>
+  <pre>${escapeHtml(JSON.stringify(rest, null, 2))}</pre>
+  ${skippedNotice}
   <p><a href="/sync">&larr; Back</a></p>`);
 }

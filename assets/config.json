@@ -1,7 +1,7 @@
 {
-    "leagueName": "Sunday GT3 Championship Season 19",
+    "leagueName": "Sunday GT3 Championship Season 20",
     "leagueId": 11991,
-    "seasonId": 134822,
+    "seasonId": 137584,
     "formats": [
         {
             "id": "sprint",
@@ -10,8 +10,8 @@
             "pointsSystem": {
                 "finishPosition": [100, 90, 80, 72, 66, 60, 54, 48, 42, 36, 30, 26, 22, 18, 14, 10, 8, 6, 4, 2],
                 "finishPositionDefault": 0,
-                "fastestLap": 5,
-                "polePosition": 5
+                "fastestLap": 0,
+                "polePosition": 0
             }
         },
         {
@@ -21,8 +21,8 @@
             "pointsSystem": {
                 "finishPosition": [150, 135, 120, 108, 99, 90, 81, 72, 63, 54, 45, 39, 33, 27, 21, 15, 12, 9, 6, 3, 0],
                 "finishPositionDefault": 0,
-                "fastestLap": 10,
-                "polePosition": 10
+                "fastestLap": 0,
+                "polePosition": 0
             }
         }
     ],

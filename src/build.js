@@ -68,7 +68,10 @@ const minLapsCompletedPercentage = 0.75;
 function assignFinishPoints(eventResult, eventIndex) {
     const sortedByFinish = [...eventResult].sort((a, b) => a.finishPositionOverall - b.finishPositionOverall);
     const scoringResults = sortedByFinish.filter((r) => {
-        return ['Running', 'Disconnected'].includes(r.status) && r.lapsCompletePercentage >= minLapsCompletedPercentage;
+        // Rulebook §4.2: must complete strictly MORE than 75% of the winner's laps
+        // to be classified; otherwise it's a DNF (no points). Use the precise ratio,
+        // not the 2dp-rounded display percentage, so the boundary is exact.
+        return ['Running', 'Disconnected'].includes(r.status) && r.lapsCompleteRatio > minLapsCompletedPercentage;
     });
     scoringResults.forEach((result, index) => {
         let points = pointsForPosition[index] ?? 0;
@@ -166,6 +169,9 @@ function parseResults(eventResult, classDrivers) {
         points: 0,
         pointsAllocations: [],
         lapsComplete: r.lapsComplete,
+        // Precise ratio of the winner's laps, used for the strict >75% classification
+        // check (rulebook §4.2). lapsCompletePercentage is the rounded display value.
+        lapsCompleteRatio: r.lapsComplete / totalLaps,
         lapsCompletePercentage: Math.round(r.lapsComplete / totalLaps * 100) / 100,
     }));
 
@@ -209,6 +215,9 @@ function parseResults(eventResult, classDrivers) {
 
 function splitIntoClasses(allEventResults, driverRegistry) {
     const map = new Map();
+    // Drivers who appear in results but aren't in the registry (left/kicked/guest).
+    // Collected (deduped by custId) so the sync can report who was dropped.
+    const skipped = new Map();
 
     // pre-populate the map with all known classes, so that even if a class has no results yet it still appears in the output
     const allClasses = new Set(Array.from(driverRegistry.values()).map((d) => d.class));
@@ -228,7 +237,11 @@ function splitIntoClasses(allEventResults, driverRegistry) {
         results.forEach((result) => {
             const driver = driverRegistry.get(result.custId);
             if (!driver) {
-                throw new Error(`No driver found for ${result.displayName} (${result.custId})`);
+                // Not in the registry (left the league, kicked, or a one-off guest).
+                // Skip rather than fail the build — their results simply don't count.
+                console.warn(`Skipping unregistered driver ${result.displayName} (${result.custId})`);
+                skipped.set(result.custId, result.displayName);
+                return;
             }
             const existing = map.get(driver.class) ?? { classId: driver.class, eventResults: [] };
             const results = [...existing.eventResults];
@@ -241,7 +254,8 @@ function splitIntoClasses(allEventResults, driverRegistry) {
         });
     });
 
-    return [...map.values()];
+    const skippedDrivers = [...skipped].map(([custId, displayName]) => ({ custId, displayName }));
+    return { classes: [...map.values()], skippedDrivers };
 }
 
 function groupByDriver(processedRaces) {
@@ -375,7 +389,7 @@ function processSeasonToDate() {
     const driverRegistry = new Map(drivers.map((d) => [d.id, d])); // Map<driverId, { id, name, team, class }>
 
     // Process data
-    const classes = splitIntoClasses(allEventResults, driverRegistry);
+    const { classes, skippedDrivers } = splitIntoClasses(allEventResults, driverRegistry);
     const classStandings = classes.map((classData) => processClass(classData, driverRegistry));
 
     // Pad standings with future rounds (for the table to render correctly even if some rounds haven't happened yet)
@@ -407,7 +421,7 @@ function processSeasonToDate() {
         saveStandings(classId, standings);
     });
 
-    return classStandings;
+    return { classStandings, skippedDrivers };
 }
 
 
@@ -463,16 +477,20 @@ function renderStandings(classStanding) {
  * render an HTML page per class. Returns the computed class standings.
  */
 function build() {
-    const classStandings = processSeasonToDate();
+    const { classStandings, skippedDrivers } = processSeasonToDate();
     classStandings.forEach(renderStandings);
-    return classStandings;
+    return { classStandings, skippedDrivers };
 }
 
 // Run automatically when invoked directly (`node src/build.js` / `npm run build`),
 // but not when imported by the server, which calls build() itself after a sync.
 if (require.main === module) {
-    build();
+    const { skippedDrivers } = build();
     console.log('Build complete!');
+    if (skippedDrivers.length) {
+        const list = skippedDrivers.map((d) => `${d.displayName} (${d.custId})`).join(', ');
+        console.log(`Skipped ${skippedDrivers.length} unregistered driver(s): ${list}`);
+    }
 }
 
 module.exports = { build, listEvents, saveEventsConfig };
