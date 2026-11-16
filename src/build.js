@@ -435,12 +435,31 @@ function renderStandings(classStanding) {
     const tableRows = classStanding.standings.map((standing, index) => {
         const roundCells = standing.results.map((result) => {
             const dropped = standing.droppedResults.includes(result);
-            return `<td class="text-center ${dropped ? 'text-decoration-line-through text-secondary' : ''}">${result.points}</td>`;
+            // Colour the cell for a podium finish in class (1st/2nd/3rd).
+            const medal = { 1: 'medal-gold', 2: 'medal-silver', 3: 'medal-bronze' }[result.finishPositionClass] ?? '';
+            // Show a status label instead of points for non-scoring rounds:
+            //   N/A  — round not raced yet (shown as "-")
+            //   DNS  — driver didn't take part
+            //   DNF  — took part but wasn't classified (rulebook §4.2: <75% of the winner's laps)
+            let content;
+            if (result.status === 'N/A') {
+                content = '-';
+            } else if (result.status === 'DNS') {
+                content = '<span class="text-secondary">DNS</span>';
+            } else if (result.finishPositionClass === null) {
+                content = '<span class="text-secondary">DNF</span>';
+            } else {
+                content = result.points;
+            }
+            return `<td class="text-center ${medal} ${dropped ? 'text-decoration-line-through text-secondary' : ''}">${content}</td>`;
         }).join('');
+
+        // Medal emoji for the top three in the standings, otherwise the position number.
+        const position = { 0: '🥇', 1: '🥈', 2: '🥉' }[index] ?? index + 1;
 
         return `
             <tr>
-                <td class="text-center">${index + 1}</td>
+                <td class="text-center">${position}</td>
                 <td class="text-nowrap">${standing.driverName}</td>
                 <td class="text-nowrap">${standing.teamName}</td>
                 <td class="text-center">${standing.totalPoints}</td>
