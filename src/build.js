@@ -443,10 +443,39 @@ function parseSeasonTitle(leagueName) {
     return match ? { title: match[1], season: match[2] } : { title: leagueName.trim(), season: null };
 }
 
+// Country names for flag alt/tooltip text. Intl covers ISO 3166-1 codes; the UK
+// home nations (ISO 3166-2 subdivisions) aren't in it, so they're named here.
+const HOME_NATIONS = { 'gb-eng': 'England', 'gb-sct': 'Scotland', 'gb-wls': 'Wales', 'gb-nir': 'Northern Ireland' };
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
+function countryName(code) {
+    if (HOME_NATIONS[code]) return HOME_NATIONS[code];
+    try {
+        return regionNames.of(code.toUpperCase());
+    } catch {
+        return code.toUpperCase();
+    }
+}
+
+// Flag for a driver's country (lowercase ISO code, see drivers.json), from flagcdn.
+function renderFlag(code) {
+    if (!code) return '';
+    const name = escapeHtml(countryName(code));
+    return `<img class="inline-block h-4 w-auto rounded-sm shadow-sm ring-1 ring-black/10" src="https://flagcdn.com/${encodeURIComponent(code)}.svg" alt="${name}" title="${name}" loading="lazy">`;
+}
+
+// Car number with a "#" prefix, to set it apart from the points/position figures.
+function renderNumber(number) {
+    if (!number) return '';
+    return `<span class="text-slate-400">#</span>${escapeHtml(number)}`;
+}
+
 function renderStandings(classStanding) {
     const template = fs.readFileSync('assets/template.html', 'utf-8');
     const { leagueName } = JSON.parse(fs.readFileSync('assets/config.json', 'utf-8'));
     const { title: seasonTitle, season } = parseSeasonTitle(leagueName);
+
+    const registry = new Map(getDrivers().map((d) => [d.id, d]));
 
     const roundHeaders = classStanding.standings[0]?.results.map((r, index) => `<th class="whitespace-nowrap px-3 py-3 text-center">R${index + 1}</th>`).join('') ?? '';
 
@@ -479,6 +508,8 @@ function renderStandings(classStanding) {
             <tr class="odd:bg-white even:bg-slate-50 hover:bg-pitboard/10">
                 <td class="px-3 py-2.5 text-center font-display text-lg font-bold">${position}</td>
                 <td class="whitespace-nowrap px-3 py-2.5 font-semibold">${standing.driverName}</td>
+                <td class="px-3 py-2.5 text-center font-display font-semibold tabular-nums text-slate-500">${renderNumber(registry.get(standing.driverId)?.number)}</td>
+                <td class="px-3 py-2.5 text-center">${renderFlag(registry.get(standing.driverId)?.country)}</td>
                 <td class="whitespace-nowrap px-3 py-2.5 text-slate-600">${standing.teamName}</td>
                 <td class="px-3 py-2.5 text-center font-display text-lg font-bold tabular-nums text-livery">${standing.totalPoints}</td>
                 ${roundCells}
