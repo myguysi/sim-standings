@@ -7,13 +7,14 @@
  * standings builder keys on. This script:
  *
  *   1. Discovers the workbook's tabs (name -> gid) from its pubhtml.
- *   2. Reads the per-class "<CLASS> Drivers" tabs for driver names + class.
+ *   2. Reads the per-class "<CLASS> Drivers" tabs for each driver's name, class,
+ *      country, car number and car brand (see scripts/lib/driver-details.js).
  *   3. Reads the "TEAMS LineUp" tab to map each driver to their team
  *      (drivers absent from a team line up are treated as Privateer).
  *   4. Resolves each driver's cust_id via the iRacing lookup API
  *      (src/iracing.js), narrowed to the league in assets/config.json.
- *   5. Writes assets/drivers.json: [{ id, name, team, class }, ...], keeping any
- *      extra fields (e.g. from scrape-driver-media.js) of existing entries by id.
+ *   5. Writes assets/drivers.json:
+ *      [{ id, name, team, class, country, number, carBrand }, ...].
  *
  * Usage:
  *   node scripts/generate-drivers.js [publishedSheetUrl] [--out path]
@@ -40,6 +41,7 @@ const {
     findClassTabs,
     fetchTabCsv,
 } = require('./lib/sheets');
+const { readClassTab } = require('./lib/driver-details');
 
 const DEFAULT_OUT = path.join(__dirname, '..', 'assets', 'drivers.json');
 
@@ -47,22 +49,6 @@ const DEFAULT_OUT = path.join(__dirname, '..', 'assets', 'drivers.json');
 const PRIVATEER = 'Privateer';
 
 // --- Tab readers ---
-
-// A "<CLASS> Drivers" tab has a header row containing "Driver"; names live in
-// that column for every subsequent non-empty row.
-function readDriverNames(rows) {
-    const headerIdx = rows.findIndex((r) => r.some((c) => c.trim() === 'Driver'));
-    if (headerIdx === -1) {
-        throw new Error('Driver tab has no "Driver" header column');
-    }
-    const col = rows[headerIdx].findIndex((c) => c.trim() === 'Driver');
-    const names = [];
-    for (const row of rows.slice(headerIdx + 1)) {
-        const name = (row[col] || '').trim();
-        if (name) names.push(name);
-    }
-    return names;
-}
 
 // The "TEAMS LineUp" tab lists one team per non-empty row: team name in column
 // 1, its two drivers in columns 3 and 4. Returns normalizedName -> team.
@@ -173,41 +159,33 @@ async function main() {
         console.warn('No "TEAMS LineUp" tab found — every driver will be a Privateer.');
     }
 
-    // Collect (sheetName, team, class) for every driver, in class order.
+    // Collect every driver's sheet details, team and class, in class order.
     const roster = [];
     for (const tab of classTabs) {
-        const names = readDriverNames(await fetchTabCsv(base, tab.gid));
-        console.log(`  ${tab.name}: ${names.length} drivers`);
-        for (const name of names) {
+        const entries = await readClassTab(base, tab.gid);
+        console.log(`  ${tab.name}: ${entries.length} drivers`);
+        for (const details of entries) {
             roster.push({
-                sheetName: name,
-                team: teamsByDriver[normalizeName(name)] || PRIVATEER,
+                details,
+                team: teamsByDriver[normalizeName(details.name)] || PRIVATEER,
                 class: tab.classId,
             });
-        }
-    }
-
-    // Fields added to drivers.json by other scripts (e.g. scrape-driver-media.js)
-    // are carried over by id so regenerating the roster doesn't drop them.
-    const existing = new Map();
-    if (fs.existsSync(outPath)) {
-        for (const d of JSON.parse(fs.readFileSync(outPath, 'utf-8'))) {
-            if (d.id != null) existing.set(d.id, d);
         }
     }
 
     console.log(`\nResolving ${roster.length} driver ids via iRacing (league ${leagueId}) ...`);
     const drivers = [];
     const unresolved = [];
-    for (const entry of roster) {
-        const { id, name, note } = await resolveDriver(entry.sheetName, leagueId);
+    for (const { details, team, class: classId } of roster) {
+        const { id, name, note } = await resolveDriver(details.name, leagueId);
         if (id == null) {
-            unresolved.push({ name: entry.sheetName, note });
-            console.warn(`  ! ${entry.sheetName} (${entry.class}): ${note}`);
+            unresolved.push({ name: details.name, note });
+            console.warn(`  ! ${details.name} (${classId}): ${note}`);
         }
+        const { country, number, carBrand } = details;
         // iRacing's canonical display name is the source of truth (resolveDriver
         // returns it, or the sheet name as a fallback when a driver is unresolved).
-        drivers.push({ ...existing.get(id), id, name, team: entry.team, class: entry.class });
+        drivers.push({ id, name, team, class: classId, country, number, carBrand });
     }
 
     backupExisting(outPath);

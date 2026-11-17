@@ -6,9 +6,7 @@
         "class": "pro",
         "country": "gb-sct",
         "number": "109",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 685974,
@@ -17,9 +15,7 @@
         "class": "pro",
         "country": "se",
         "number": "148",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/bf8ed9796e33d21b.png",
-        "livery": "images/liveries/bfcc44e1f171a952.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 341375,
@@ -28,9 +24,7 @@
         "class": "pro",
         "country": "gb",
         "number": "188",
-        "carBrand": "Chevrolet",
-        "photo": "images/drivers/173db37f14f5519b.png",
-        "livery": "images/liveries/bf8b07370085e4cf.png"
+        "carBrand": "Chevrolet"
     },
     {
         "id": 715773,
@@ -39,9 +33,7 @@
         "class": "pro",
         "country": "de",
         "number": "155",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/cc52f787a48485e7.png",
-        "livery": "images/liveries/69cf0b276653f8ad.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 1049767,
@@ -50,9 +42,7 @@
         "class": "pro",
         "country": "gb",
         "number": "199",
-        "carBrand": "BMW",
-        "photo": "images/drivers/27f052ea8d5ca240.png",
-        "livery": "images/liveries/62a8e30557b14dce.png"
+        "carBrand": "BMW"
     },
     {
         "id": 866842,
@@ -61,9 +51,7 @@
         "class": "pro",
         "country": "gb",
         "number": "112",
-        "carBrand": "McLaren",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "McLaren"
     },
     {
         "id": 1068445,
@@ -72,9 +60,7 @@
         "class": "pro",
         "country": "lv",
         "number": "114",
-        "carBrand": "BMW",
-        "photo": "images/drivers/dc4f4b8f859d998c.png",
-        "livery": "images/liveries/16f1cb2434493934.png"
+        "carBrand": "BMW"
     },
     {
         "id": 810591,
@@ -83,9 +69,7 @@
         "class": "pro",
         "country": "de",
         "number": "119",
-        "carBrand": "Porsche",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/0102c2e6fa512f07.png"
+        "carBrand": "Porsche"
     },
     {
         "id": 416043,
@@ -94,9 +78,7 @@
         "class": "pro",
         "country": "gb",
         "number": "123",
-        "carBrand": "Mercedes-AMG",
-        "photo": "images/drivers/769758e379403538.png",
-        "livery": "images/liveries/c813a096f665d757.png"
+        "carBrand": "Mercedes-AMG"
     },
     {
         "id": 661983,
@@ -105,9 +87,7 @@
         "class": "pro",
         "country": "gb",
         "number": "185",
-        "carBrand": "BMW",
-        "photo": "images/drivers/cdc3500fec2698f2.png",
-        "livery": "images/liveries/0a518b3a011c24ed.png"
+        "carBrand": "BMW"
     },
     {
         "id": 688261,
@@ -116,9 +96,7 @@
         "class": "pro",
         "country": "gb-eng",
         "number": "171",
-        "carBrand": "Porsche",
-        "photo": "images/drivers/27f052ea8d5ca240.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Porsche"
     },
     {
         "id": 599291,
@@ -127,9 +105,7 @@
         "class": "pro",
         "country": "gb",
         "number": "125",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/395df3a96351505f.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 369262,
@@ -138,9 +114,7 @@
         "class": "pro",
         "country": "gb",
         "number": "186",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/cdc3500fec2698f2.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 467004,
@@ -149,9 +123,7 @@
         "class": "pro",
         "country": "nl",
         "number": "134",
-        "carBrand": "BMW",
-        "photo": "images/drivers/27f052ea8d5ca240.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "BMW"
     },
     {
         "id": 526917,
@@ -160,9 +132,7 @@
         "class": "pro",
         "country": "gb-sct",
         "number": "127",
-        "carBrand": null,
-        "photo": "images/drivers/b420fd0cd7b67085.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": null
     },
     {
         "id": 760849,
@@ -171,9 +141,7 @@
         "class": "pro",
         "country": "dk",
         "number": "128",
-        "carBrand": "Mercedes-AMG",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Mercedes-AMG"
     },
     {
         "id": 371116,
@@ -182,9 +150,7 @@
         "class": "pro",
         "country": "gb",
         "number": "118",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/cdc3500fec2698f2.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 166382,
@@ -193,9 +159,7 @@
         "class": "pro",
         "country": "gb",
         "number": "191",
-        "carBrand": "Mercedes-AMG",
-        "photo": "images/drivers/389ccb552fc3aa86.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Mercedes-AMG"
     },
     {
         "id": 953058,
@@ -204,9 +168,7 @@
         "class": "pro",
         "country": "nl",
         "number": "113",
-        "carBrand": "Mercedes-AMG",
-        "photo": "images/drivers/27f052ea8d5ca240.png",
-        "livery": "images/liveries/3b80d297e8695dd1.png"
+        "carBrand": "Mercedes-AMG"
     },
     {
         "id": 1217870,
@@ -215,9 +177,7 @@
         "class": "pro",
         "country": "de",
         "number": "150",
-        "carBrand": "BMW",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "BMW"
     },
     {
         "id": 1006142,
@@ -226,9 +186,7 @@
         "class": "pro",
         "country": "gb",
         "number": "133",
-        "carBrand": "BMW",
-        "photo": "images/drivers/cdc3500fec2698f2.png",
-        "livery": "images/liveries/a9819c68ee6007a1.png"
+        "carBrand": "BMW"
     },
     {
         "id": 906552,
@@ -237,9 +195,7 @@
         "class": "inter",
         "country": "nl",
         "number": "299",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/27f052ea8d5ca240.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 555939,
@@ -248,9 +204,7 @@
         "class": "inter",
         "country": "gb",
         "number": "209",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/f83460cc1709264d.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 315305,
@@ -259,9 +213,7 @@
         "class": "inter",
         "country": "gb",
         "number": "296",
-        "carBrand": "Aston Martin",
-        "photo": "images/drivers/65bf22450fd227c6.png",
-        "livery": "images/liveries/d4dfa9206adb024e.png"
+        "carBrand": "Aston Martin"
     },
     {
         "id": 556529,
@@ -270,9 +222,7 @@
         "class": "inter",
         "country": "gb-eng",
         "number": "215",
-        "carBrand": "McLaren",
-        "photo": "images/drivers/cdc3500fec2698f2.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "McLaren"
     },
     {
         "id": 871297,
@@ -281,9 +231,7 @@
         "class": "inter",
         "country": "gb",
         "number": "246",
-        "carBrand": "Mercedes-AMG",
-        "photo": "images/drivers/7e5f63097dcd15f9.png",
-        "livery": "images/liveries/470fd207d6a9c420.png"
+        "carBrand": "Mercedes-AMG"
     },
     {
         "id": 476119,
@@ -292,9 +240,7 @@
         "class": "inter",
         "country": "gb",
         "number": "233",
-        "carBrand": "Chevrolet",
-        "photo": "images/drivers/59062f9ec03621b9.png",
-        "livery": "images/liveries/89f02455c6780eb4.png"
+        "carBrand": "Chevrolet"
     },
     {
         "id": 1118808,
@@ -303,9 +249,7 @@
         "class": "inter",
         "country": "pr",
         "number": "208",
-        "carBrand": "Chevrolet",
-        "photo": "images/drivers/27f052ea8d5ca240.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Chevrolet"
     },
     {
         "id": 582350,
@@ -314,9 +258,7 @@
         "class": "inter",
         "country": "gb",
         "number": "291",
-        "carBrand": "Porsche",
-        "photo": "images/drivers/cd0f0befdbf8b9cd.png",
-        "livery": "images/liveries/245c473f17e14b14.png"
+        "carBrand": "Porsche"
     },
     {
         "id": 931202,
@@ -325,9 +267,7 @@
         "class": "inter",
         "country": "gb",
         "number": "204",
-        "carBrand": "McLaren",
-        "photo": "images/drivers/9f2fa01cc868fbc1.png",
-        "livery": "images/liveries/ba745e4c690d4ec8.png"
+        "carBrand": "McLaren"
     },
     {
         "id": 489822,
@@ -336,9 +276,7 @@
         "class": "inter",
         "country": "gb-wls",
         "number": "227",
-        "carBrand": "Aston Martin",
-        "photo": "images/drivers/7b3f3e5d123a62b1.png",
-        "livery": "images/liveries/d4dfa9206adb024e.png"
+        "carBrand": "Aston Martin"
     },
     {
         "id": 1369310,
@@ -347,9 +285,7 @@
         "class": "inter",
         "country": "gb",
         "number": "228",
-        "carBrand": "McLaren",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/ace7047e734dbccd.png"
+        "carBrand": "McLaren"
     },
     {
         "id": 1503662,
@@ -358,9 +294,7 @@
         "class": "inter",
         "country": "gb",
         "number": "202",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/c9ea55dbe5f8dd94.png",
-        "livery": "images/liveries/a5d59137fff9a9d2.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 382938,
@@ -369,9 +303,7 @@
         "class": "inter",
         "country": "ch",
         "number": "223",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/83b0bc0805e78b05.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 689294,
@@ -380,9 +312,7 @@
         "class": "inter",
         "country": "gb-eng",
         "number": "277",
-        "carBrand": "McLaren",
-        "photo": "images/drivers/cdc3500fec2698f2.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "McLaren"
     },
     {
         "id": 1148076,
@@ -391,9 +321,7 @@
         "class": "inter",
         "country": "gb",
         "number": "267",
-        "carBrand": "McLaren",
-        "photo": "images/drivers/319cec09dd2d65d9.png",
-        "livery": "images/liveries/bcd6d422a85873d1.png"
+        "carBrand": "McLaren"
     },
     {
         "id": 637517,
@@ -402,9 +330,7 @@
         "class": "inter",
         "country": "gb-eng",
         "number": "218",
-        "carBrand": "McLaren",
-        "photo": "images/drivers/a195518c429dd034.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "McLaren"
     },
     {
         "id": 788083,
@@ -413,9 +339,7 @@
         "class": "inter",
         "country": "gb",
         "number": "216",
-        "carBrand": "Lamborghini",
-        "photo": "images/drivers/27f052ea8d5ca240.png",
-        "livery": "images/liveries/d159f499cc43bbaa.png"
+        "carBrand": "Lamborghini"
     },
     {
         "id": 1232438,
@@ -424,9 +348,7 @@
         "class": "inter",
         "country": "gb",
         "number": "217",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/c1b784b1ab965545.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 1059778,
@@ -435,9 +357,7 @@
         "class": "inter",
         "country": "gb",
         "number": "274",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/cdc3500fec2698f2.png",
-        "livery": "images/liveries/6ec06a691d363271.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 631960,
@@ -446,9 +366,7 @@
         "class": "inter",
         "country": "gb",
         "number": "298",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/c54188cf5462675f.png",
-        "livery": "images/liveries/41071664b2b70ef3.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 536315,
@@ -457,9 +375,7 @@
         "class": "inter",
         "country": "gb-wls",
         "number": "207",
-        "carBrand": "McLaren",
-        "photo": "images/drivers/218d153d35b26539.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "McLaren"
     },
     {
         "id": 1067121,
@@ -468,9 +384,7 @@
         "class": "club",
         "country": "gb-eng",
         "number": "380",
-        "carBrand": "Porsche",
-        "photo": "images/drivers/3471cc58e224d7aa.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Porsche"
     },
     {
         "id": 1204529,
@@ -479,9 +393,7 @@
         "class": "club",
         "country": "rs",
         "number": "368",
-        "carBrand": "BMW",
-        "photo": "images/drivers/27f052ea8d5ca240.png",
-        "livery": "images/liveries/cfdfab51bbe3a6ae.png"
+        "carBrand": "BMW"
     },
     {
         "id": 1353429,
@@ -490,9 +402,7 @@
         "class": "club",
         "country": "gb",
         "number": "367",
-        "carBrand": "Lamborghini",
-        "photo": "images/drivers/c6892191c7588134.png",
-        "livery": "images/liveries/848075d33ad3c446.png"
+        "carBrand": "Lamborghini"
     },
     {
         "id": 748006,
@@ -501,9 +411,7 @@
         "class": "club",
         "country": "pt",
         "number": "313",
-        "carBrand": "McLaren",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "McLaren"
     },
     {
         "id": 1301306,
@@ -512,9 +420,7 @@
         "class": "club",
         "country": "it",
         "number": "328",
-        "carBrand": "Mercedes-AMG",
-        "photo": "images/drivers/cf4eb16e782684e5.png",
-        "livery": "images/liveries/e7a00eed0f12deb2.png"
+        "carBrand": "Mercedes-AMG"
     },
     {
         "id": 494731,
@@ -523,9 +429,7 @@
         "class": "club",
         "country": "gb",
         "number": "369",
-        "carBrand": "BMW",
-        "photo": "images/drivers/47222601f847b78f.png",
-        "livery": "images/liveries/a837cc52590030b1.png"
+        "carBrand": "BMW"
     },
     {
         "id": 428284,
@@ -534,9 +438,7 @@
         "class": "club",
         "country": "gb",
         "number": "339",
-        "carBrand": "BMW",
-        "photo": "images/drivers/9080f5d4ee3b7991.png",
-        "livery": "images/liveries/54f1e36323acb683.png"
+        "carBrand": "BMW"
     },
     {
         "id": 814906,
@@ -545,9 +447,7 @@
         "class": "club",
         "country": "fi",
         "number": "383",
-        "carBrand": "Mercedes-AMG",
-        "photo": "images/drivers/aac6ea0a74a67f32.png",
-        "livery": "images/liveries/6fea30af128f464f.png"
+        "carBrand": "Mercedes-AMG"
     },
     {
         "id": 1327874,
@@ -556,9 +456,7 @@
         "class": "club",
         "country": "it",
         "number": "322",
-        "carBrand": null,
-        "photo": "images/drivers/6034be852816d7a7.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": null
     },
     {
         "id": 1378040,
@@ -567,9 +465,7 @@
         "class": "club",
         "country": "gb",
         "number": "344",
-        "carBrand": "Porsche",
-        "photo": "images/drivers/cdc3500fec2698f2.png",
-        "livery": "images/liveries/626d6b60f1e75780.png"
+        "carBrand": "Porsche"
     },
     {
         "id": 765512,
@@ -578,9 +474,7 @@
         "class": "club",
         "country": "se",
         "number": "377",
-        "carBrand": "Mercedes-AMG",
-        "photo": "images/drivers/16946c722e627a3e.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Mercedes-AMG"
     },
     {
         "id": 922585,
@@ -589,9 +483,7 @@
         "class": "club",
         "country": "gb",
         "number": "395",
-        "carBrand": "BMW",
-        "photo": "images/drivers/4755524d2e5500c3.png",
-        "livery": "images/liveries/f531ac5c396af090.png"
+        "carBrand": "BMW"
     },
     {
         "id": 412714,
@@ -600,9 +492,7 @@
         "class": "club",
         "country": "gb-eng",
         "number": "303",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/27f052ea8d5ca240.png",
-        "livery": "images/liveries/35bf55bbc4e459b9.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 940815,
@@ -611,9 +501,7 @@
         "class": "club",
         "country": "gb-nir",
         "number": "330",
-        "carBrand": "BMW",
-        "photo": "images/drivers/8e1f28ec2d0f603b.png",
-        "livery": "images/liveries/744e4d2bf9bf9614.png"
+        "carBrand": "BMW"
     },
     {
         "id": 435958,
@@ -622,9 +510,7 @@
         "class": "club",
         "country": "gb",
         "number": "310",
-        "carBrand": "Aston Martin",
-        "photo": "images/drivers/b0d3915aa3a6a0b0.png",
-        "livery": "images/liveries/5e31aa07099733ed.png"
+        "carBrand": "Aston Martin"
     },
     {
         "id": 586188,
@@ -633,9 +519,7 @@
         "class": "club",
         "country": "gb",
         "number": "346",
-        "carBrand": "Ferrari",
-        "photo": "images/drivers/d31b12ab79b3abad.png",
-        "livery": "images/liveries/4f72731704524c34.png"
+        "carBrand": "Ferrari"
     },
     {
         "id": 925334,
@@ -644,9 +528,7 @@
         "class": "club",
         "country": "gb",
         "number": "355",
-        "carBrand": "BMW",
-        "photo": "images/drivers/de929b58f7379702.png",
-        "livery": "images/liveries/bff9f83fc5f3c20a.png"
+        "carBrand": "BMW"
     },
     {
         "id": 1157322,
@@ -655,8 +537,6 @@
         "class": "club",
         "country": "gb",
         "number": "304",
-        "carBrand": "BMW",
-        "photo": "images/drivers/e437931b0873196e.png",
-        "livery": "images/liveries/cfa2e6e994a02bc8.png"
+        "carBrand": "BMW"
     }
 ]

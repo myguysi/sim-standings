@@ -135,12 +135,6 @@ function fetchTabCsv(base, gid) {
     return fetchText(`${base}/pub?gid=${gid}&single=true&output=csv`).then(parseCsv);
 }
 
-// The rendered HTML of a single tab. Unlike the CSV export this includes cell
-// images (IMAGE() formulas / in-cell images), but omits hidden columns.
-function fetchTabHtml(base, gid) {
-    return fetchText(`${base}/pubhtml/sheet?headers=false&gid=${gid}`);
-}
-
 module.exports = {
     DEFAULT_SHEET_URL,
     CLASS_IDS,
@@ -152,5 +146,4 @@ module.exports = {
     discoverTabs,
     findClassTabs,
     fetchTabCsv,
-    fetchTabHtml,
 };
