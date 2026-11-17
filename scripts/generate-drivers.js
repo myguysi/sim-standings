@@ -12,7 +12,8 @@
  *      (drivers absent from a team line up are treated as Privateer).
  *   4. Resolves each driver's cust_id via the iRacing lookup API
  *      (src/iracing.js), narrowed to the league in assets/config.json.
- *   5. Writes assets/drivers.json: [{ id, name, team, class }, ...].
+ *   5. Writes assets/drivers.json: [{ id, name, team, class }, ...], keeping any
+ *      extra fields (e.g. from scrape-driver-media.js) of existing entries by id.
  *
  * Usage:
  *   node scripts/generate-drivers.js [publishedSheetUrl] [--out path]
@@ -31,126 +32,19 @@ const path = require('path');
 
 const { lookupDrivers, isAuthenticated } = require('../src/iracing');
 const config = require('../assets/config.json');
-
-// A pubhtml/pub URL from any tab of the default (Season 20) workbook. Only the
-// `/e/<id>` segment matters; the script discovers each tab's gid for itself.
-const DEFAULT_SHEET_URL =
-    'https://docs.google.com/spreadsheets/d/e/2PACX-1vRYW73CM-iu2FlsRAiatZW7W60fDgf15rXiDfGiFozZlTxmKgMqsH99txmeR5ApzL5-B8OSF8-I-AGX/pubhtml';
+const {
+    DEFAULT_SHEET_URL,
+    normalizeName,
+    workbookBase,
+    discoverTabs,
+    findClassTabs,
+    fetchTabCsv,
+} = require('./lib/sheets');
 
 const DEFAULT_OUT = path.join(__dirname, '..', 'assets', 'drivers.json');
 
-// Spreadsheet class label (from the "<label> Drivers" tab name) -> the class id
-// used throughout the app (see assets/config.json "classes").
-const CLASS_IDS = { PRO: 'pro', INTER: 'inter', CLUB: 'club' };
-
 // Drivers not assigned to a team in the TEAMS LineUp tab race unattached.
 const PRIVATEER = 'Privateer';
-
-// --- CSV parsing (RFC 4180: handles quoted fields, embedded commas/newlines) ---
-
-function parseCsv(text) {
-    const rows = [];
-    let row = [];
-    let field = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < text.length; i++) {
-        const c = text[i];
-        if (inQuotes) {
-            if (c === '"') {
-                if (text[i + 1] === '"') {
-                    field += '"';
-                    i++;
-                } else {
-                    inQuotes = false;
-                }
-            } else {
-                field += c;
-            }
-        } else if (c === '"') {
-            inQuotes = true;
-        } else if (c === ',') {
-            row.push(field);
-            field = '';
-        } else if (c === '\n' || c === '\r') {
-            if (c === '\r' && text[i + 1] === '\n') i++;
-            row.push(field);
-            rows.push(row);
-            row = [];
-            field = '';
-        } else {
-            field += c;
-        }
-    }
-    // Flush any trailing field/row that wasn't terminated by a newline.
-    if (field !== '' || row.length) {
-        row.push(field);
-        rows.push(row);
-    }
-    return rows;
-}
-
-// --- Name matching ---
-
-// Diacritic- and case-insensitive key so sheet names (often typed without
-// accents, e.g. "Timo Gartner") match iRacing's canonical display names
-// (e.g. "Timo Gärtner").
-// Letters that NFD does not decompose into base + combining mark (so the mark
-// strip below can't reach them) still need folding, e.g. Danish ø in "Brøckner".
-const LETTER_FOLDS = [
-    [/[øòóôõö]/g, 'o'],
-    [/æ/g, 'ae'],
-    [/å/g, 'a'],
-    [/ß/g, 'ss'],
-    [/ł/g, 'l'],
-    [/[đð]/g, 'd'],
-    [/þ/g, 'th'],
-];
-
-function normalizeName(name) {
-    let s = name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    for (const [re, to] of LETTER_FOLDS) s = s.replace(re, to);
-    return s.replace(/\s+/g, ' ').trim();
-}
-
-// --- Google Sheets fetching ---
-
-// Strip any tab/query suffix so we can rebuild per-tab URLs from the workbook id.
-function workbookBase(url) {
-    const match = url.match(/^(https:\/\/docs\.google\.com\/spreadsheets\/d\/e\/[^/]+)/);
-    if (!match) {
-        throw new Error(`Not a published Google Sheet URL: ${url}`);
-    }
-    return match[1];
-}
-
-async function fetchText(url) {
-    const res = await fetch(url);
-    if (!res.ok) {
-        throw new Error(`GET ${url} -> ${res.status} ${res.statusText}`);
-    }
-    return res.text();
-}
-
-// Parse the workbook's pubhtml for its tab switcher: a list of
-// { name: "<tab>", pageUrl: "...gid=<gid>..." } entries. Returns name -> gid.
-async function discoverTabs(base) {
-    const html = await fetchText(`${base}/pubhtml`);
-    const tabs = {};
-    const re = /\{name:\s*"((?:[^"\\]|\\.)*)",\s*pageUrl:[^}]*?gid=(\d+)/g;
-    let m;
-    while ((m = re.exec(html))) {
-        tabs[m[1].replace(/\\(.)/g, '$1')] = m[2];
-    }
-    if (!Object.keys(tabs).length) {
-        throw new Error('Could not find any tabs in the published sheet');
-    }
-    return tabs;
-}
-
-function fetchTabCsv(base, gid) {
-    return fetchText(`${base}/pub?gid=${gid}&single=true&output=csv`).then(parseCsv);
-}
 
 // --- Tab readers ---
 
@@ -269,15 +163,7 @@ async function main() {
     console.log(`Discovering tabs in ${base} ...`);
     const tabs = await discoverTabs(base);
 
-    // Find the per-class driver tabs (e.g. "SUNGT3-PRO Drivers") and the team line up.
-    const classTabs = [];
-    for (const [name, gid] of Object.entries(tabs)) {
-        const m = name.match(/\b(PRO|INTER|CLUB)\b\s*Drivers/i);
-        if (m) classTabs.push({ classId: CLASS_IDS[m[1].toUpperCase()], name, gid });
-    }
-    if (!classTabs.length) {
-        throw new Error('No "<CLASS> Drivers" tabs found in the sheet');
-    }
+    const classTabs = findClassTabs(tabs);
     const teamsEntry = Object.entries(tabs).find(([n]) => /TEAMS\s*LineUp/i.test(n));
 
     const teamsByDriver = teamsEntry
@@ -287,10 +173,7 @@ async function main() {
         console.warn('No "TEAMS LineUp" tab found — every driver will be a Privateer.');
     }
 
-    // Collect (sheetName, team, class) for every driver, preserving class order.
-    const order = ['pro', 'inter', 'club'];
-    classTabs.sort((a, b) => order.indexOf(a.classId) - order.indexOf(b.classId));
-
+    // Collect (sheetName, team, class) for every driver, in class order.
     const roster = [];
     for (const tab of classTabs) {
         const names = readDriverNames(await fetchTabCsv(base, tab.gid));
@@ -301,6 +184,15 @@ async function main() {
                 team: teamsByDriver[normalizeName(name)] || PRIVATEER,
                 class: tab.classId,
             });
+        }
+    }
+
+    // Fields added to drivers.json by other scripts (e.g. scrape-driver-media.js)
+    // are carried over by id so regenerating the roster doesn't drop them.
+    const existing = new Map();
+    if (fs.existsSync(outPath)) {
+        for (const d of JSON.parse(fs.readFileSync(outPath, 'utf-8'))) {
+            if (d.id != null) existing.set(d.id, d);
         }
     }
 
@@ -315,7 +207,7 @@ async function main() {
         }
         // iRacing's canonical display name is the source of truth (resolveDriver
         // returns it, or the sheet name as a fallback when a driver is unresolved).
-        drivers.push({ id, name, team: entry.team, class: entry.class });
+        drivers.push({ ...existing.get(id), id, name, team: entry.team, class: entry.class });
     }
 
     backupExisting(outPath);
