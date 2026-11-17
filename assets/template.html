@@ -4,49 +4,64 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{pageTitle}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
-    <style>
-        /* Podium finishes (1st/2nd/3rd in class) — !important to override table-striped. */
-        .medal-gold { background-color: #ffd700 !important; }
-        .medal-silver { background-color: #c0c0c0 !important; }
-        .medal-bronze { background-color: #cd7f32 !important; }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;1,800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        livery: { DEFAULT: '#0F2A5C', deep: '#0A1D42' },
+                        pitboard: '#F5C400',
+                        paddock: '#F4F6FA',
+                        ink: '#16181D',
+                    },
+                    fontFamily: {
+                        display: ['"Barlow Condensed"', '"Arial Narrow"', 'sans-serif'],
+                        sans: ['Barlow', 'system-ui', 'sans-serif'],
+                    },
+                },
+            },
+        };
+    </script>
+    <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
-    <nav class="sticky-top navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
-        <div class="container">
-            <span class="navbar-brand mb-0 h1">SRi - UKSR - Sunday GT3 Championship Season 20</span>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-                <ul class="navbar-nav">
+<body class="bg-paddock font-sans text-ink antialiased">
+    <header class="hero relative overflow-hidden bg-livery text-white">
+        <div class="relative mx-auto max-w-7xl px-4 pt-10 sm:px-6 sm:pt-14 lg:px-8">
+            <p class="font-display text-lg font-semibold text-pitboard">SRi UKSR</p>
+            <div class="mt-1 flex flex-wrap items-end gap-x-6 gap-y-2">
+                <h1 class="font-display min-w-0 text-[2.4rem] font-extrabold italic leading-[0.9] tracking-tight [overflow-wrap:anywhere] sm:text-7xl lg:text-8xl">{seasonTitle}</h1>
+                {seasonBadge}
+            </div>
+
+            <nav class="mt-10 sm:mt-12" aria-label="Class standings">
+                <ul class="tabs flex gap-1 overflow-x-auto sm:gap-2">
                     {navItems}
                 </ul>
-            </div>
+            </nav>
         </div>
-    </nav>
-
-    <header class="mt-4 container">
-        <h1>{headingTitle}</h1>
     </header>
 
-    <div class="mt-4 table-responsive">
-        <table class="table table-striped table-hover">
-            <thead>
-                <tr>
-                    <th class="text-nowrap text-center">Position</th>
-                    <th class="text-nowrap">Driver</th>
-                    <th class="text-nowrap">Team</th>
-                    <th class="text-nowrap text-center">Points</th>
-                    {roundHeaders}
-                </tr>
-            </thead>
-            <tbody>
-                {tableRows}
-            </tbody>
-        </table>
-    </div>
+    <main class="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
+        <div class="overflow-x-auto rounded-b-lg rounded-tr-lg bg-white shadow-sm">
+            <table class="w-full border-collapse text-sm">
+                <thead class="border-b-2 border-livery font-display text-base font-semibold text-livery">
+                    <tr>
+                        <th class="whitespace-nowrap px-3 py-3 text-center">Pos</th>
+                        <th class="whitespace-nowrap px-3 py-3 text-left">Driver</th>
+                        <th class="whitespace-nowrap px-3 py-3 text-left">Team</th>
+                        <th class="whitespace-nowrap px-3 py-3 text-center">Points</th>
+                        {roundHeaders}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {tableRows}
+                </tbody>
+            </table>
+        </div>
+    </main>
 </body>
 </html>

@@ -427,10 +427,28 @@ function processSeasonToDate() {
 
 // renderer.js
 
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// Split "Sunday GT3 Championship Season 20" into the championship name and its
+// season, so the hero can set the season as a separate badge. Falls back to the
+// whole name (and no badge) if leagueName doesn't end in "Season N".
+function parseSeasonTitle(leagueName) {
+    const match = /^(.*?)\s+(Season\s+\d+)$/i.exec(leagueName.trim());
+    return match ? { title: match[1], season: match[2] } : { title: leagueName.trim(), season: null };
+}
+
 function renderStandings(classStanding) {
     const template = fs.readFileSync('assets/template.html', 'utf-8');
+    const { leagueName } = JSON.parse(fs.readFileSync('assets/config.json', 'utf-8'));
+    const { title: seasonTitle, season } = parseSeasonTitle(leagueName);
 
-    const roundHeaders = classStanding.standings[0]?.results.map((r, index) => `<th class="text-nowrap text-center">R${index + 1}</th>`).join('') ?? '';
+    const roundHeaders = classStanding.standings[0]?.results.map((r, index) => `<th class="whitespace-nowrap px-3 py-3 text-center">R${index + 1}</th>`).join('') ?? '';
 
     const tableRows = classStanding.standings.map((standing, index) => {
         const roundCells = standing.results.map((result) => {
@@ -445,42 +463,45 @@ function renderStandings(classStanding) {
             if (result.status === 'N/A') {
                 content = '-';
             } else if (result.status === 'DNS') {
-                content = '<span class="text-secondary">DNS</span>';
+                content = '<span class="text-slate-400">DNS</span>';
             } else if (result.finishPositionClass === null) {
-                content = '<span class="text-secondary">DNF</span>';
+                content = '<span class="text-slate-400">DNF</span>';
             } else {
                 content = result.points;
             }
-            return `<td class="text-center ${medal} ${dropped ? 'text-decoration-line-through text-secondary' : ''}">${content}</td>`;
+            return `<td class="px-3 py-2.5 text-center tabular-nums ${medal} ${dropped ? 'line-through text-slate-400' : ''}">${content}</td>`;
         }).join('');
 
         // Medal emoji for the top three in the standings, otherwise the position number.
         const position = { 0: '🥇', 1: '🥈', 2: '🥉' }[index] ?? index + 1;
 
         return `
-            <tr>
-                <td class="text-center">${position}</td>
-                <td class="text-nowrap">${standing.driverName}</td>
-                <td class="text-nowrap">${standing.teamName}</td>
-                <td class="text-center">${standing.totalPoints}</td>
+            <tr class="odd:bg-white even:bg-slate-50 hover:bg-pitboard/10">
+                <td class="px-3 py-2.5 text-center font-display text-lg font-bold">${position}</td>
+                <td class="whitespace-nowrap px-3 py-2.5 font-semibold">${standing.driverName}</td>
+                <td class="whitespace-nowrap px-3 py-2.5 text-slate-600">${standing.teamName}</td>
+                <td class="px-3 py-2.5 text-center font-display text-lg font-bold tabular-nums text-livery">${standing.totalPoints}</td>
                 ${roundCells}
             </tr>
         `;
     }).join('');
 
     const navItems = classConfigs.map(({ id, name }) => `
-        <li class="nav-item">
-            <a class="nav-link ${id === classStanding.classId ? 'active' : ''}" href="/${id}">
-                ${name}
-            </a>
+        <li>
+            <a class="tab" href="/${id}"${id === classStanding.classId ? ' aria-current="page"' : ''}>${name}</a>
         </li>
     `).join('');
 
-    const title = classConfigs.find((c) => c.id === classStanding.classId)?.name;
+    const className = classConfigs.find((c) => c.id === classStanding.classId)?.name;
+
+    const seasonBadge = season
+        ? `<span class="mb-1 rounded bg-pitboard px-3 py-1 font-display text-2xl font-bold text-livery sm:mb-2 sm:text-3xl">${escapeHtml(season)}</span>`
+        : '';
 
     const html = template
-        .replace('{pageTitle}', `SRi - ${title} Standings`)
-        .replace('{headingTitle}', `${title} Standings`)
+        .replace('{pageTitle}', `${escapeHtml(leagueName)} | ${className}`)
+        .replace('{seasonTitle}', escapeHtml(seasonTitle))
+        .replace('{seasonBadge}', seasonBadge)
         .replace('{roundHeaders}', roundHeaders)
         .replace('{tableRows}', tableRows)
         .replace('{navItems}', navItems);
@@ -498,6 +519,9 @@ function renderStandings(classStanding) {
 function build() {
     const { classStandings, skippedDrivers } = processSeasonToDate();
     classStandings.forEach(renderStandings);
+    // Shared stylesheet, served at /styles.css by express.static('public/standings').
+    fs.mkdirSync('public/standings', { recursive: true });
+    fs.copyFileSync('assets/styles.css', 'public/standings/styles.css');
     return { classStandings, skippedDrivers };
 }
 

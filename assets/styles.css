@@ -1,0 +1,60 @@
+/*
+ * Custom styles for the standings pages — only what Tailwind utilities can't
+ * express cleanly. Copied to public/standings/styles.css by src/build.js.
+ */
+
+/* Hero: a faint chequered-flag field fading in from the right edge. */
+.hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: conic-gradient(rgba(255, 255, 255, 0.06) 25%, transparent 0 50%, rgba(255, 255, 255, 0.06) 0 75%, transparent 0);
+    background-size: 28px 28px;
+    -webkit-mask-image: linear-gradient(to left, #000 0%, transparent 65%);
+    mask-image: linear-gradient(to left, #000 0%, transparent 65%);
+    pointer-events: none;
+}
+
+/* Traditional folder tabs sitting on the hero's bottom edge. The active tab is
+   white, matching the table panel, so it reads as opening into it. */
+.tab {
+    position: relative;
+    display: block;
+    padding: 0.7rem 1.75rem 0.6rem;
+    border-radius: 0.6rem 0.6rem 0 0;
+    border-top: 3px solid transparent;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.75);
+    font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.tab:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #fff;
+}
+
+.tab:focus-visible {
+    outline: 3px solid #F5C400;
+    outline-offset: -3px;
+}
+
+.tab[aria-current='page'] {
+    background-color: #fff;
+    border-top-color: #F5C400;
+    color: #0F2A5C;
+}
+
+/* Podium finishes (1st/2nd/3rd in class) for individual rounds. */
+.medal-gold { background-color: #FFD95A; }
+.medal-silver { background-color: #D9DEE6; }
+.medal-bronze { background-color: #E8B48A; }
+
+@media (prefers-reduced-motion: reduce) {
+    .tab { transition: none; }
+}
